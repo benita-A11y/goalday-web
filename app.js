@@ -14,7 +14,7 @@ const migColor = c => COLOR_MIGRATE[(c||"").toLowerCase()] || c || "#71b7ed";
 const DAY_NAMES = ["周一","周二","周三","周四","周五","周六","周日"];
 const KEY = "goalday-state-v2";
 const OLD_KEY = "goalday-state-v1";
-const BUILD = 57;   /* v57：复盘标签修复——HTML inline onclick + 双保险事件 + app-build戳同步 */
+const BUILD = 58;   /* v58：复盘布局优化——任务复盘2×2四宫格+进度条，日程执行三列+月度趋势 */
 
 /* ───────── 日期工具 ───────── */
 function fmtDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
@@ -2900,6 +2900,15 @@ function paintReview(dates,isDay,isYear){
       let streak=0;for(let i=0;i<400;i++){const ds=addDays(todayStr(),-i);if(checks[ds])streak++;else break;}
       return {h,c,rate:Math.round(c/rangeLen*100),streak};
     }).sort((a,b)=>b.rate-a.rate);
+    /* v58：月度日程趋势（1-12月始终从全年数据计算） */
+    let monthlySched=[];
+    try{
+      const y=new Date().getFullYear();
+      for(let m=1;m<=12;m++){
+        const prefix=y+"-"+String(m).padStart(2,"0");
+        monthlySched.push(tasks.filter(t=>t.time&&t.due&&t.due.startsWith(prefix)).length);
+      }
+    }catch(e){ monthlySched=new Array(12).fill(0); }
   }catch(e){
     console.error("[复盘] 数据计算降级（已用 0/[] 兜底）",e);
   }
@@ -2945,11 +2954,19 @@ function paintReview(dates,isDay,isYear){
     try{const badge=$("#rvTaskBadge");if(badge){badge.textContent=rate>=80?"优秀":rate>=60?"良好":rate>0?"加油":"待开始";badge.className="rv-panel-badge "+kpiCls(rate);}}catch(e){}
 
     if(!total && planned.length>0){
-      let html='<div class="rv-mini-grid">';
-      html+='<div class="ms"><b>'+planned.length+'</b><span>计划数</span></div>';
-      html+='<div class="ms"><b>'+doneT.length+'</b><span>已完成</span></div>';
-      html+='<div class="ms"><b>'+(planned.length-doneT.length)+'</b><span>未完成</span></div>';
-      if(autoNew>0)html+='<div class="ms"><b>'+autoNew+'</b><span>新增</span></div>';
+      const undone=planned.length-doneT.length;
+      /* v58：2×2 四宫格 + 进度条，每项始终显示（含新增=0） */
+      let html='<div class="rv-task-4grid">';
+      html+='<div class="t4-card"><span class="t4-icon">📊</span><span class="t4-val">'+planned.length+'</span><span class="t4-label">计划总数 · 项</span></div>';
+      html+='<div class="t4-card"><span class="t4-icon">✅</span><span class="t4-val">'+doneT.length+'</span><span class="t4-label">已完成 · 项</span></div>';
+      html+='<div class="t4-card"><span class="t4-icon">⏳</span><span class="t4-val">'+undone+'</span><span class="t4-label">未完成 · 项</span></div>';
+      html+='<div class="t4-card"><span class="t4-icon">✨</span><span class="t4-val">'+autoNew+'</span><span class="t4-label">新增 · 项</span></div>';
+      html+='</div>';
+      /* 进度条 */
+      html+='<div class="rv-progress-row">';
+      html+='<div class="rv-progress-label"><span>完成状态分布</span><span class="rp-pct">'+rate+'%</span></div>';
+      html+='<div class="rv-progress-track"><div class="rv-progress-fill" style="width:'+rate+'%"></div></div>';
+      html+='<div class="rv-progress-detail">已完成 '+doneT.length+' 项 · 未完成 '+undone+' 项</div>';
       html+='</div>';
       sw("#revTaskStats",html);
 
@@ -3079,20 +3096,33 @@ function paintReview(dates,isDay,isYear){
     se("#rvSchedPanel",true);
     try{const badge=$("#rvSchedBadge");if(badge){badge.textContent=schedRate>=80?"优秀":schedRate>=60?"良好":schedRate>0?"加油":"待开始";badge.className="rv-panel-badge "+kpiCls(schedRate);}}catch(e){}
     if(!total && schedT.length>0){
-      let html='<div class="rv-mini-grid">';
-      html+='<div class="ms"><b>'+schedT.length+'</b><span>计划日程</span></div>';
-      html+='<div class="ms"><b>'+schedDone.length+'</b><span>已完成</span></div>';
-      html+='<div class="ms"><b>'+liftUndone+'</b><span>未完成</span></div>';
+      /* v58：三列并排 + 月度趋势 */
+      let html='<div class="rv-sched-3col">';
+      html+='<div class="s3-card"><span class="s3-icon">📋</span><span class="s3-val">'+schedT.length+'</span><span class="s3-label">计划日程 · 项</span></div>';
+      html+='<div class="s3-card"><span class="s3-icon">✅</span><span class="s3-val">'+schedDone.length+'</span><span class="s3-label">已完成 · 项</span></div>';
+      html+='<div class="s3-card"><span class="s3-icon">⏳</span><span class="s3-val">'+liftUndone+'</span><span class="s3-label">未完成 · 项</span></div>';
       html+='</div>';
       sw("#revSchedStats",html);
 
-      // 柱状图：每日日程数量
+      /* 月度日程趋势（1-12月） */
       try{
-        const sc=$("#revUtil");if(sc){se("#revUtil",true);
-          drawBars(sc,taskDayLabels,utilVals,"#9B8EC9");
-        }
-      }catch(e){console.error("[复盘] 日程柱状图失败",e);}
-      try{sw("#revUtilLegend",'<span>每日带日程任务数</span>');}catch(e){}
+        const maxMS=Math.max(...monthlySched,1);
+        const schedMonths=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+        let mhtml='<div class="rv-monthly-trend">';
+        mhtml+='<div class="rv-monthly-title">月度日程趋势（1月-12月）</div>';
+        mhtml+='<div class="rv-monthly-bars">';
+        monthlySched.forEach((v,i)=>{
+          const h=Math.max(3,Math.round(v/maxMS*72));
+          mhtml+='<div class="rv-monthly-bar" title="'+schedMonths[i]+' '+v+'项">';
+          mhtml+='<div class="rv-monthly-fill" style="height:'+h+'px"></div>';
+          mhtml+='<span class="rv-monthly-val">'+v+'</span>';
+          mhtml+='<span class="rv-monthly-mon">'+schedMonths[i]+'</span>';
+          mhtml+='</div>';
+        });
+        mhtml+='</div></div>';
+        sw("#revUtilLegend",mhtml);
+        try{se("#revUtil",false);}catch(e){}
+      }catch(e){console.error("[复盘] 月度趋势失败",e);}
     }else{
       sw("#revSchedStats",ec(ET));se("#revUtil",false);try{$("#revUtilLegend").innerHTML='';}catch(e){}
     }
@@ -3187,25 +3217,49 @@ function paintReviewDemo(dates,isDay,isYear){
     '<div class="kpi-card '+kCls(schedRate)+'"><div class="kpi-ring">'+ringSvg(schedRate,kCls(schedRate))+'<span class="kpi-val">'+schedRate+'%</span></div><div class="kpi-label">日程执行率</div><div class="kpi-sub">'+schedDone+'/'+schedT+' 日程</div></div>'+
     '<div class="kpi-card '+(focusMin>=120?'good':focusMin>=60?'mid':'low')+'"><div class="kpi-ring kpi-ring-num"><svg viewBox="0 0 72 72" class="kpi-svg"><circle cx="36" cy="36" r="28" fill="none" stroke="var(--line)" stroke-width="6"/></svg><span class="kpi-val kpi-val-big">'+hrs(focusMin)+'h</span></div><div class="kpi-label">专注时长</div><div class="kpi-sub">'+pomoCnt+' 次记录</div></div>'+
     '<div class="kpi-card '+kCls(habitRate)+'"><div class="kpi-ring">'+ringSvg(habitRate,kCls(habitRate))+'<span class="kpi-val">'+habitRate+'%</span></div><div class="kpi-label">习惯达成率</div><div class="kpi-sub">'+habitDays+'/'+rangeLen+' 天</div></div>');
-  /* 任务面板 */
+  /* 任务面板 v58：2×2 四宫格 + 进度条 */
+  const undoN=plannedN-doneN;
   safeWrite("#revTaskStats",
-    '<div class="ms"><b>'+plannedN+'</b><span>计划数</span></div>'+
-    '<div class="ms"><b>'+doneN+'</b><span>已完成</span></div>'+
-    '<div class="ms"><b>'+(plannedN-doneN)+'</b><span>未完成</span></div>'+
-    '<div class="ms"><b>'+autoNew+'</b><span>新增</span></div>');
+    '<div class="rv-task-4grid">'+
+    '<div class="t4-card"><span class="t4-icon">📊</span><span class="t4-val">'+plannedN+'</span><span class="t4-label">计划总数 · 项</span></div>'+
+    '<div class="t4-card"><span class="t4-icon">✅</span><span class="t4-val">'+doneN+'</span><span class="t4-label">已完成 · 项</span></div>'+
+    '<div class="t4-card"><span class="t4-icon">⏳</span><span class="t4-val">'+undoN+'</span><span class="t4-label">未完成 · 项</span></div>'+
+    '<div class="t4-card"><span class="t4-icon">✨</span><span class="t4-val">'+autoNew+'</span><span class="t4-label">新增 · 项</span></div>'+
+    '</div>'+
+    '<div class="rv-progress-row">'+
+    '<div class="rv-progress-label"><span>完成状态分布</span><span class="rp-pct">'+rate+'%</span></div>'+
+    '<div class="rv-progress-track"><div class="rv-progress-fill" style="width:'+rate+'%"></div></div>'+
+    '<div class="rv-progress-detail">已完成 '+doneN+' 项 · 未完成 '+undoN+' 项</div>'+
+    '</div>');
   showEl("#rvTaskPanel");showEl("#revTaskPie");showEl("#revTaskTrend");
   try{const pie=$("#revTaskPie");if(pie){const {ctx,w,h}=prepCv(pie);ctx.clearRect(0,0,w,h);const cx=w/2,cy=h*0.4,R=Math.min(w,h)/2-20;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,R,-Math.PI/2,-Math.PI/2+doneN/plannedN*2*Math.PI);ctx.closePath();ctx.fillStyle='#84c3b7';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,R,-Math.PI/2+doneN/plannedN*2*Math.PI,-Math.PI/2+2*Math.PI);ctx.closePath();ctx.fillStyle='#E5DFD7';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#1C1C1E';ctx.font='600 22px sans-serif';ctx.textAlign='center';ctx.fillText(rate+'%',cx,cy+6);ctx.fillStyle='#8E8E93';ctx.font='11px sans-serif';ctx.fillText('完成率',cx,cy+22);}}catch(e){}
   try{const ln=$("#revTaskTrend");if(ln){const dailyDone=dates.map((_,i)=>isYear?(doneN/12|0)*(1+Math.round(Math.sin(i/2)*0.3)):plannedN/rangeLen*(0.6+Math.random()*0.4));drawLine(ln,dayLabels,dailyDone.map(v=>Math.round(v)),dates.map((_,i)=>Math.round(dailyDone[i]*1.3)));}}catch(e){}
   /* 任务分类 */
   safeWrite("#revTaskClass",'<div class="tc-row"><span class="tc-dot" style="background:#84c3b7"></span><span class="tc-name">示例任务</span><span class="tc-cnt">'+plannedN+'项</span><div class="tc-bar"><i style="width:100%;background:#84c3b7"></i></div></div>');
-  /* 日程执行 */
+  /* 日程执行 v58：三列 + 月度趋势 */
   safeWrite("#revSchedStats",
-    '<div class="ms"><b>'+liftTotal+'</b><span>计划日程</span></div>'+
-    '<div class="ms"><b>'+liftDone+'</b><span>已完成</span></div>'+
-    '<div class="ms"><b>'+liftUndone+'</b><span>未完成</span></div>');
-  showEl("#revUtil");
-  try{drawBars($("#revUtil"),dayLabels,utilVals,"#9B8EC9");}catch(e){}
-  safeWrite("#revUtilLegend",'<span>每日带日程任务数</span>');
+    '<div class="rv-sched-3col">'+
+    '<div class="s3-card"><span class="s3-icon">📋</span><span class="s3-val">'+liftTotal+'</span><span class="s3-label">计划日程 · 项</span></div>'+
+    '<div class="s3-card"><span class="s3-icon">✅</span><span class="s3-val">'+liftDone+'</span><span class="s3-label">已完成 · 项</span></div>'+
+    '<div class="s3-card"><span class="s3-icon">⏳</span><span class="s3-val">'+liftUndone+'</span><span class="s3-label">未完成 · 项</span></div>'+
+    '</div>');
+  try{se("#revUtil",false);}catch(e){}
+  /* 月度趋势示例 */
+  try{
+    const months=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    const mdemo=[3,2,4,5,3,6,4,5,7,3,2,4];
+    const maxM=Math.max(...mdemo);
+    const schedMonths=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    let tr='<div class="rv-monthly-trend">';
+    tr+='<div class="rv-monthly-title">月度日程趋势（1月-12月）</div>';
+    tr+='<div class="rv-monthly-bars">';
+    mdemo.forEach((v,i)=>{
+      const h=Math.max(3,Math.round(v/maxM*72));
+      tr+='<div class="rv-monthly-bar"><div class="rv-monthly-fill" style="height:'+h+'px"></div><span class="rv-monthly-val">'+v+'</span><span class="rv-monthly-mon">'+schedMonths[i]+'</span></div>';
+    });
+    tr+='</div></div>';
+    safeWrite("#revUtilLegend",tr);
+  }catch(e){}
   /* 番茄专注 */
   safeWrite("#revFocusStats",
     '<div class="ms"><b>'+hrs(focusMin)+'</b><span>总时长(h)</span></div>'+
