@@ -3805,18 +3805,26 @@ function showUpdateBadge(){
 }
 /* 页面加载后 600ms 触发一次（DOM 已就绪、SW 检测完后），确保不与首屏渲染抢帧 */
 window.addEventListener("load",()=>setTimeout(showUpdateBadge,600));
-/* 跨设备同步 + HTML 自身版本自检：v42 起，部署更新必达
+/* v59 跨设备同步 + HTML 自身版本自检：v42 起，部署更新必达
    - 拉 version.json 检测 app.js BUILD 落后：落后就 reload
    - 读 <meta name="app-build"> 检测 HTML 自身版本落后：落后就 reload（根治 iOS PWA 钉死旧 HTML 的 bug）
+   - 防抖：5 分钟内只允许 reload 一次，URL 带 ?v= 时跳过（防止 version.json 错配死循环）
    - 每 30s 巡检一次，保证后台标签页/手机锁屏回来都能拉到新版本 */
 (function autoSync(){
+  const SYNC_KEY="goalday_lastSyncReload";
+  const LIMIT=5*60*1000;   /* 5 分钟冷却 */
   const check=()=>{
+    /* 0. 防抖：5 分钟内已 reload 过就跳过 */
+    try{const last=parseInt(localStorage.getItem(SYNC_KEY)||"0",10);if(last&&Date.now()-last<LIMIT)return;}catch(e){}
+    /* 0.5 URL 已带 v= 参数 → 说明刚刷新过，跳过避免循环 */
+    if(location.search.includes("v="))return;
     /* 1. 检查 HTML 自身版本（关键修复：iOS PWA 把旧 HTML 缓存钉死，光改 app.js 没用） */
     try{
       const meta=document.querySelector('meta[name="app-build"]');
       const htmlBuild=meta?parseInt(meta.getAttribute('content'),10):0;
       if(htmlBuild && htmlBuild!==BUILD){
         console.log(`[autoSync] HTML 旧版 ${htmlBuild} → 强制更新到 ${BUILD}`);
+        try{localStorage.setItem(SYNC_KEY,String(Date.now()));}catch(e){}
         location.replace(location.pathname+'?v='+BUILD+'_'+Date.now());
         return;
       }
@@ -3825,11 +3833,14 @@ window.addEventListener("load",()=>setTimeout(showUpdateBadge,600));
     fetch("version.json",{cache:"no-store"}).then(r=>r.json()).then(d=>{
       if(d&&typeof d.build==="number"&&d.build!==BUILD){
         console.log(`[autoSync] JS 旧版 ${BUILD} → 强制更新到 ${d.build}`);
+        try{localStorage.setItem(SYNC_KEY,String(Date.now()));}catch(e){}
         location.replace(location.pathname+'?v='+d.build+'_'+Date.now());
       }
     }).catch(()=>{});
   };
-  setTimeout(check,2000);
+  /* 页面加载时清除旧防抖标记，允许首次 sync 正常检查 */
+  try{localStorage.removeItem(SYNC_KEY);}catch(e){}
+  setTimeout(check,3000);   /* 改为 3s，让页面先渲染完 */
   setInterval(check,30000);
 })();
 /* 灾难恢复：localStorage 被清空/损坏时，用 IndexedDB 镜像回灌 */
