@@ -1128,6 +1128,17 @@ img.emoji{height:1.15em;width:1.15em;vertical-align:-.18em;margin:0 .02em;}
 }
 .ib-catbtn:active{background:color-mix(in srgb,var(--accent) 22%,transparent);}
 
+/* v62：灵感条目右侧删除按钮 */
+.ib-delbtn{
+  flex:none;align-self:center;margin-left:6px;padding:5px 10px;
+  border:1px solid transparent;
+  background:transparent;
+  color:var(--ink-3);border-radius:999px;font-size:14px;
+  cursor:pointer;white-space:nowrap;line-height:1.4;
+}
+.ib-delbtn:hover{background:color-mix(in srgb,#E5706B 12%,transparent);color:#E5706B;}
+.ib-delbtn:active{background:color-mix(in srgb,#E5706B 24%,transparent);}
+
 /* ── 多选工具条 ── */
 .insp-sel-bar{
   position:fixed;left:0;right:0;bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom));z-index:80;
