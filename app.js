@@ -14,7 +14,7 @@ const migColor = c => COLOR_MIGRATE[(c||"").toLowerCase()] || c || "#71b7ed";
 const DAY_NAMES = ["周一","周二","周三","周四","周五","周六","周日"];
 const KEY = "goalday-state-v2";
 const OLD_KEY = "goalday-state-v1";
-const BUILD = 62;   /* v62：灵感收集箱每条右侧加🗑️删除按钮，移除底部多选工具条 */
+const BUILD = 63;   /* v63：待分类左上角改为☰抽屉导航 */
 
 /* ───────── 日期工具 ───────── */
 function fmtDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
@@ -375,7 +375,7 @@ function setupTodoHeader(layer){
   DB.style.display="block";BK.style.display="none";MR.style.display="none";
   if(layer==="home"){TT.textContent="📋 待办";}
   else if(layer==="inbox"){DB.style.display="block";BK.style.display="none";MR.style.display="block";TT.textContent="💭 灵感收集箱";}
-  else if(layer==="triage"){DB.style.display="none";BK.style.display="block";TT.textContent="📂 待分类";}
+  else if(layer==="triage"){DB.style.display="block";BK.style.display="none";TT.textContent="📂 待分类";}
   else if(layer==="lists"||layer==="trash"){DB.style.display="none";BK.style.display="block";TT.textContent=layer==="lists"?"📋 我的清单":"🗑️ 回收站";}
 }
 
@@ -3827,7 +3827,7 @@ $("#mask").addEventListener("click",e=>{if(e.target===$("#mask"))closeModal();})
 /* SW 注册地址带版本号：每次部署改版本，强制浏览器重新拉取 sw.js（避免浏览器缓存旧 SW 导致永远拿不到新代码）。
    同时监听 controllerchange：新 SW 接管时自动刷新一次，确保用户刷新后即看到最新版。 */
 if("serviceWorker" in navigator){
-  const SW_URL="sw.js?__v=jihua-v62";
+  const SW_URL="sw.js?__v=jihua-v63";
   window.addEventListener("load",()=>{
     navigator.serviceWorker.register(SW_URL).catch(()=>{});
     /* 主动检查 SW 更新：即使页面长期不刷新（如手机后台标签页），部署后也能拉到新版 */
