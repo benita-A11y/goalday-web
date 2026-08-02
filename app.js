@@ -45,6 +45,7 @@ function defaultState(){
     todoLayer:"inbox", todoSel:"inbox",
     reviewDim:"week",
     reviewAnchor:todayStr(),   /* v44：复盘自定义周期锚点，null=今天 */
+    reviewCustomMonth:null,    /* v56：用户通过日历选择的特定月份 "2026-08"，null=跟随标签 */
     dayDate:todayStr(), monthOffset:0,
     habits:[
       {id:uid(),name:"早起喝水",emoji:"💧",color:"#88d8db",listId:l3,hidden:false,archived:false,checks:{},createdAt:Date.now()},
@@ -2337,24 +2338,45 @@ function roundRect(ctx,x,y,w,h,r){
 }
 
 /* ═══════════ Tab4 复盘（视图 + 统计 合并） ═══════════ */
-$$("#revDims button").forEach(b=>b.addEventListener("click",()=>{state.reviewDim=b.dataset.d;renderReview();save();}));
-/* v48：复盘 ‹ › 箭头切换周期（替代已移除的日期选择器） */
+/* v56：修复标签点击——切换时间维度 + 清除自定义月份 + 重置锚点为今天 */
+$$("#revDims button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    state.reviewDim=b.dataset.d;
+    state.reviewCustomMonth=null;    // 切换标签时退出自定义月份模式
+    state.reviewAnchor=todayStr();   // 回到今天
+    renderReview();save();
+  });
+});
+/* v48：复盘 ‹ › 箭头切换周期 */
 $("#revPrev").addEventListener("click",()=>{
   const d=revAnchorDate();
-  if(state.reviewDim==="week")d.setDate(d.getDate()-7);
+  if(state.reviewCustomMonth){ // 自定义月份模式：按月切换
+    d.setMonth(d.getMonth()-1);
+    const m=d.getMonth()+1,y=d.getFullYear();
+    state.reviewCustomMonth=y+"-"+String(m).padStart(2,"0");
+    state.reviewAnchor=fmtDate(new Date(y,m-1,1));
+  }else if(state.reviewDim==="week")d.setDate(d.getDate()-7);
   else if(state.reviewDim==="month")d.setMonth(d.getMonth()-1);
   else d.setFullYear(d.getFullYear()-1);
   state.reviewAnchor=fmtDate(d);renderReview();save();
 });
 $("#revNext").addEventListener("click",()=>{
   const d=revAnchorDate();
+  if(state.reviewCustomMonth){
+    d.setMonth(d.getMonth()+1);
+    const m=d.getMonth()+1,y=d.getFullYear();
+    state.reviewCustomMonth=y+"-"+String(m).padStart(2,"0");
+    state.reviewAnchor=fmtDate(new Date(y,m-1,1));
+    state.reviewAnchor=fmtDate(d);renderReview();save();return;
+  }
   if(state.reviewDim==="week")d.setDate(d.getDate()+7);
   else if(state.reviewDim==="month")d.setMonth(d.getMonth()+1);
   else d.setFullYear(d.getFullYear()+1);
   state.reviewAnchor=fmtDate(d);renderReview();save();
 });
-/* v51：回到当前周期按钮 —— 一键把锚点重置为今天 */
+/* v51：回到当前周期按钮 */
 $("#revToday").addEventListener("click",()=>{
+  state.reviewCustomMonth=null;
   state.reviewAnchor=todayStr();renderReview();save();
   toast("📍 已回到当前周期");
 });
@@ -2367,18 +2389,23 @@ function revAnchorDate(){
   return isNaN(d.getTime())?new Date():d;
 }
 function revRange(){
+  /* v56: 用户通过日历选择了特定月份 → 强制 month 维度只显示该月 */
+  if(state.reviewCustomMonth){
+    const [cy,cm]=state.reviewCustomMonth.split("-");
+    const y=parseInt(cy,10),m=parseInt(cm,10)-1;
+    const n=new Date(y,m+1,0).getDate();
+    const ds=[];for(let i=1;i<=n;i++)ds.push(fmtDate(new Date(y,m,i)));
+    return {dates:ds,label:`${y}-${String(m+1).padStart(2,"0")}月`,displayLabel:`${y}年${m+1}月`,isDay:false,isYear:false};
+  }
   const dim=state.reviewDim,anc=revAnchorDate();
   if(dim==="day"){const ds=todayStr();const now=new Date();const dLabel=`${now.getFullYear()}年 ${now.getMonth()+1}月${now.getDate()}日`;return {dates:[ds],label:`当前查看：${dLabel}`,displayLabel:dLabel,isDay:true,isYear:false};}
   if(dim==="week"){
     const m=new Date(anc);m.setHours(0,0,0,0);m.setDate(m.getDate()-((m.getDay()+6)%7));
     const ds=[];for(let i=0;i<7;i++){const d=new Date(m);d.setDate(m.getDate()+i);ds.push(fmtDate(d));}
-    const wk=isoWeek(m);
-    const s0=ds[0].slice(5).replace("-","."),s6=ds[6].slice(5).replace("-",".");
-    const dLabel=`${s0} - ${s6}`;
-    return {dates:ds,label:`当前查看：第${wk}周｜${s0}‑${s6}`,displayLabel:dLabel,isDay:false,isYear:false};
+    const wk=isoWeek(m);return {dates:ds,label:`第${wk}周`,displayLabel:`${anc.getFullYear()}年`,isDay:false,isYear:false};
   }
-  if(dim==="month"){const y=anc.getFullYear(),m=anc.getMonth();const n=new Date(y,m+1,0).getDate();const ds=[];for(let i=1;i<=n;i++)ds.push(fmtDate(new Date(y,m,i)));const dLabel=`${y}年${m+1}月`;return {dates:ds,label:`当前查看：${y}-${String(m+1).padStart(2,"0")}月`,displayLabel:dLabel,isDay:false,isYear:false};}
-  const y=anc.getFullYear();const ds=[];for(let m=0;m<12;m++)ds.push(`${y}-${String(m+1).padStart(2,"0")}`);const dLabel=`${y}年`;return {dates:ds,label:`当前查看：${y}年`,displayLabel:dLabel,isDay:false,isYear:true};
+  if(dim==="month"){const y=anc.getFullYear(),m=anc.getMonth();const n=new Date(y,m+1,0).getDate();const ds=[];for(let i=1;i<=n;i++)ds.push(fmtDate(new Date(y,m,i)));return {dates:ds,label:`${y}-${String(m+1).padStart(2,"0")}月`,displayLabel:`${y}年`,isDay:false,isYear:false};}
+  const y=anc.getFullYear();const ds=[];for(let m=0;m<12;m++)ds.push(`${y}-${String(m+1).padStart(2,"0")}`);return {dates:ds,label:`${y}年`,displayLabel:`${y}年`,isDay:false,isYear:true};
 }
 function revRangeShifted(dim){
   const anc=revAnchorDate();
@@ -2387,74 +2414,54 @@ function revRangeShifted(dim){
   if(dim==="month"){const y=anc.getFullYear(),m=anc.getMonth()-1;const n=new Date(y,m+1,0).getDate();const out=[];for(let i=1;i<=n;i++)out.push(fmtDate(new Date(y,m,i)));return out;}
   const y=anc.getFullYear()-1;const out=[];for(let m=0;m<12;m++)out.push(`${y}-${String(m+1).padStart(2,"0")}`);return out;
 }
-/* v55：日历选择器 —— 点击日期标签弹出小日历，类似 TickTick / Notion 风格 */
-function toggleRevCalendar(range){
+/* v56：日历选择器 —— 点击"2026年"弹出12个月份网格，选择具体月份 */
+function toggleRevCalendar(){
   let pop=$("#revCalendarPopup");
   if(pop && pop.style.display!=="none"){pop.remove();return;}
   if(pop)pop.remove();
   pop=document.createElement("div");pop.id="revCalendarPopup";pop.className="rev-cal-popup";
-  const dim=state.reviewDim;
   const anc=revAnchorDate();
-  let calYear=anc.getFullYear(),calMonth=anc.getMonth(); // 0-based month for display
+  let calYear=anc.getFullYear();
+  const monthNames=["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
   function renderCal(){
-    const monthNames=["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
-    const today=new Date();
-    const firstDay=new Date(calYear,calMonth,1);
-    const lastDay=new Date(calYear,calMonth+1,0);
-    const totalDays=lastDay.getDate();
-    const startDow=(firstDay.getDay()+6)%7; // Mon=0
+    const todayM=todayStr().slice(0,7); // "2026-08"
+    const curMonth=state.reviewCustomMonth||todayM;
     let html='<div class="rcp-header">'
       +'<button class="rcp-nav" id="rcpPrev">◀</button>'
-      +'<span class="rcp-title">'+calYear+'年 '+monthNames[calMonth]+'</span>'
+      +'<span class="rcp-title">'+calYear+'年</span>'
       +'<button class="rcp-nav" id="rcpNext">▶</button>'
       +'</div>'
-      +'<div class="rcp-weekdays">'+["一","二","三","四","五","六","日"].map(d=>'<span>'+d+'</span>').join('')+'</div>'
-      +'<div class="rcp-grid">';
-    for(let i=0;i<startDow;i++)html+='<span class="rcp-day empty"></span>';
-    for(let d=1;d<=totalDays;d++){
-      const date=new Date(calYear,calMonth,d);
-      const ds=fmtDate(date);
-      const isToday=ds===todayStr();
-      const inRange=range&&range.dates&&(range.isYear?range.dates.includes(ds.slice(0,7)):range.dates.includes(ds));
-      // 高亮：如果是周维度→高亮整周；月维度→高亮所在月份；年维度→高亮所在年份
-      const selDate=revAnchorDate();
-      const selDs=fmtDate(selDate);
-      let isSel=false;
-      if(dim==="week"){
-        const selM=new Date(selDate);selM.setDate(selM.getDate()-((selM.getDay()+6)%7));
-        const calM=new Date(date);calM.setDate(calM.getDate()-((calM.getDay()+6)%7));
-        isSel=fmtDate(selM)===fmtDate(calM);
-      }else if(dim==="month"){
-        isSel=selDate.getFullYear()===calYear&&selDate.getMonth()===calMonth;
-      }else{
-        isSel=selDate.getFullYear()===calYear;
-      }
-      html+='<button class="rcp-day'+(isToday?' today':'')+(isSel?' sel':'')+'" data-date="'+ds+'">'+d+'</button>';
+      +'<div class="rcp-month-grid">';
+    for(let m=0;m<12;m++){
+      const key=calYear+"-"+String(m+1).padStart(2,"0");
+      const isToday=key===todayM;
+      const isSel=key===curMonth;
+      html+='<button class="rcp-month'+(isToday?' today':'')+(isSel?' sel':'')+'" data-month="'+key+'">'
+        +monthNames[m]+'</button>';
     }
     html+='</div>';
     pop.innerHTML=html;
-    // 导航事件
-    pop.querySelector("#rcpPrev").onclick=function(e){e.stopPropagation();calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCal();};
-    pop.querySelector("#rcpNext").onclick=function(e){e.stopPropagation();calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCal();};
-    // 日期点击事件
-    pop.querySelectorAll(".rcp-day").forEach(btn=>{
+    pop.querySelector("#rcpPrev").onclick=function(e){e.stopPropagation();calYear--;renderCal();};
+    pop.querySelector("#rcpNext").onclick=function(e){e.stopPropagation();calYear++;renderCal();};
+    pop.querySelectorAll(".rcp-month").forEach(btn=>{
       btn.onclick=function(e){
         e.stopPropagation();
-        const ds=btn.dataset.date;
-        state.reviewAnchor=ds;
+        state.reviewCustomMonth=btn.dataset.month;
+        const [y,m2]=state.reviewCustomMonth.split("-");
+        state.reviewDim="month";
+        state.reviewAnchor=y+"-"+m2+"-01";
         pop.remove();
-        $$("#revDims button").forEach(b=>b.classList.toggle("active",b.dataset.d===dim));
         renderReview();save();
       };
     });
   }
   renderCal();
-  const rl=$("#revRangeLabel");rl.parentNode.insertBefore(pop,rl.nextSibling);
-  // 点击外部关闭
+  const rl=$("#revRangeLabel");
+  rl.parentNode.insertBefore(pop,rl.nextSibling);
   setTimeout(()=>{
     document.addEventListener("click",function closeCal(e){
       if(!pop||!pop.parentNode)return;
-      if(!pop.contains(e.target)&&e.target!==rl){
+      if(!pop.contains(e.target)&&e.target!==rl&&e.target.parentNode!==rl){
         pop.remove();
         document.removeEventListener("click",closeCal);
       }
@@ -2462,41 +2469,70 @@ function toggleRevCalendar(range){
   },50);
 }
 function rateOf(dates,isYear){const inR=ds=>ds&&(isYear?dates.includes(ds.slice(0,7)):dates.includes(ds));const p=state.tasks.filter(t=>!t.abandoned&&inR(t.due));return p.length?Math.round(p.filter(t=>t.done).length/p.length*100):null;}
-/* 复盘进入/切换：轻量骨架屏 + 同步重算，出错不白屏；不整页重载，仅局部刷新
-   v44：manual=true 表示用户点了右上角刷新按钮 → 旋转动画 + 成功/失败 toast */
+/* v56：轻量加载态 —— 切换时间维度时 dataView 添加 loading 类产生微妙脉冲，渲染完成后移除 */
+function revShowSkeleton(){
+  const dv=$("#dataView");if(!dv)return;
+  dv.classList.add("loading");
+}
+function revHideSkeleton(){
+  const dv=$("#dataView");if(dv)dv.classList.remove("loading");
+}
+/* 复盘进入/切换：v56 重写——标签逻辑 + 骨架屏 + 日历月份选择器 */
 function renderReview(manual){
   try{
   const dataView=$("#dataView");
   if(!dataView){console.error("[复盘] dataView不存在!");return;}
   try{const oldErr=dataView.querySelector(".rev-error");if(oldErr)oldErr.remove();}catch(e){}
+  /* 超时保护：显示骨架屏 */
+  let skelTimer=null;
+  const showSkel=()=>{
+    if(skelTimer)return;
+    skelTimer=setTimeout(()=>{revShowSkeleton();},150);
+  };
+  showSkel();
   let range;
   try{ range=revRange(); }
-  catch(err){ console.error("复盘取数失败",err); if(dataView){try{revFatal(err);}catch(e2){}} if(manual)stopRevSpin(false); return; }
+  catch(err){revFatal(err);if(manual)stopRevSpin(false);return;}
+  clearTimeout(skelTimer);skelTimer=null;
+  /* 更新标签激活态 + 日期标签 */
+  const dim=state.reviewDim;
+  $$("#revDims button").forEach(b=>b.classList.toggle("active",b.dataset.d===dim));
+  const anc=revAnchorDate();
   const rl=$("#revRangeLabel");
-  rl.textContent=range.displayLabel||range.label||"";
+  /* v56: 标签文本逻辑 */
+  if(state.reviewCustomMonth){
+    const [cy,cm]=state.reviewCustomMonth.split("-");
+    const monthNames=["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+    rl.textContent=cy+"年 "+monthNames[parseInt(cm,10)-1];
+    rl.title="点击选择月份";
+  }else{
+    rl.textContent=anc.getFullYear()+"年";
+    rl.title="点击年份选择月份";
+  }
   rl.style.cursor="pointer";
-  rl.title="点击选择日期";
-  // v54: 日历选择器——点击日期标签弹出小日历
-  rl.onclick=function(e){e.stopPropagation();toggleRevCalendar(range);};
+  const prevPopup=document.getElementById("revCalendarPopup");if(prevPopup)prevPopup.remove();
+  rl.onclick=function(e){e.stopPropagation();toggleRevCalendar();};
+  /* 副标题 */
   const subEl=$("#revSubtitle");
   try{
   if(subEl){
-    const anc=revAnchorDate();const dim=state.reviewDim;
-    const m=new Date(anc);let sub="";
-    if(dim==="week"){m.setDate(m.getDate()-((m.getDay()+6)%7));sub=`${anc.getFullYear()}年 第${isoWeek(m)}周 复盘`;}
-    else if(dim==="month"){sub=`${anc.getFullYear()}年 ${anc.getMonth()+1}月 复盘`;}
-    else{sub=`${anc.getFullYear()}年 复盘`;}
-    subEl.textContent=sub;
-  }
-  }catch(e){console.error("[复盘] 副标题渲染失败",e);}
+    const m=new Date(anc);
+    if(state.reviewCustomMonth){const [cy,cm]=state.reviewCustomMonth.split("-");subEl.textContent=cy+"年 "+parseInt(cm,10)+"月 复盘";}
+    else if(dim==="week"){m.setDate(m.getDate()-((m.getDay()+6)%7));subEl.textContent=anc.getFullYear()+"年 第"+isoWeek(m)+"周 复盘";}
+    else if(dim==="month"){subEl.textContent=anc.getFullYear()+"年 "+(anc.getMonth()+1)+"月 复盘";}
+    else{subEl.textContent=anc.getFullYear()+"年 复盘";}
+  }}catch(e){}
+  /* 今天按钮 */
   const todayBtn=$("#revToday");
-  if(todayBtn)todayBtn.style.display=(state.reviewAnchor===todayStr())?"none":"";
+  if(todayBtn)todayBtn.style.display=((state.reviewAnchor===todayStr()||state.reviewAnchor===null)&&!state.reviewCustomMonth)?"none":"";
+  /* 刷新按钮 */
   if(manual){const btn=$("#revRefresh");if(btn)btn.classList.add("spinning");}
   requestAnimationFrame(()=>{
     let ok=false;
     try{
       paintReview(range.dates,range.isDay,range.isYear);
       ok=true;
+      revHideSkeleton();
       if(manual)setTimeout(()=>toast("✅数据已刷新"),200);
     }catch(err){
       console.error("复盘渲染失败",err);
