@@ -2779,139 +2779,226 @@ function paintReview(dates,isDay,isYear){
     console.error("[复盘] 数据计算降级（已用 0/[] 兜底）",e);
   }
 
-  /* v52-降级重建：纯文字统计版——移除所有Canvas/SVG图表，保证稳定渲染绝不空白 */
+  /* v53：完全对齐 review-guide.html 参考图 —— SVG环形KPI + Canvas图表 + 全维度面板 */
 
   // ---------- 基础辅助 ----------
   try{ removeDemoBanner(); }catch(e){}
-  const safeWrite=(id,html)=>{
-    const el=$(id);if(!el)return;
-    try{el.innerHTML=html;}catch(e){console.error("[复盘] "+id+" 写入失败",e);}
-  };
-  const safeHide=s=>{try{const el=$(s);if(el)el.style.display="none";}catch(e){}}
-  const safeShow=s=>{try{const el=$(s);if(el)el.style.display="";}catch(e){}}
-  const hideEl=s=>{const el=$(s);if(el)el.style.display="none";};
-  const showEl=s=>{const el=$(s);if(el)el.style.display="";};
-  const emptyCard=txt=>'<div class="rev-empty rev-empty-center">'+txt+'</div>';
-  const EMPTY_TIP="该周期暂时还没有记录哦✨";
-  const ERR_TIP="读取数据发生异常✨";
+  const sw=(id,html)=>{const el=$(id);if(!el)return;try{el.innerHTML=html;}catch(e){console.error("[复盘] "+id, e);}};
+  const se=(s,v)=>{const el=$(s);if(el)el.style.display=v?"":"none";};
+  const ec=txt=>'<div class="rev-empty rev-empty-center">'+txt+'</div>';
+  const ET="该周期暂无记录✨";
 
-  const totalData=planned.length===0 && recs.length===0 && habitDays===0 && schedT.length===0;
+  const total=planned.length===0 && recs.length===0 && hd.length===0 && schedT.length===0;
 
-  // ---------- 始终显示所有面板，隐藏空态引导 ----------
+  // ---------- 辅助：SVG环形图 ----------
+  const ringSvg=(pct,cls)=>{const c=Math.max(0,Math.min(100,pct||0));const C=2*Math.PI*28;const o=C*(1-c/100);return'<svg viewBox="0 0 72 72" class="kpi-svg"><circle cx="36" cy="36" r="28" fill="none" stroke="var(--line)" stroke-width="6"/><circle cx="36" cy="36" r="28" fill="none" stroke="var(--c,'+cls+')" stroke-width="6" stroke-dasharray="'+C+'" stroke-dashoffset="'+o+'" stroke-linecap="round" transform="rotate(-90 36 36)" class="kpi-arc '+cls+'"/></svg>';};
+  const kpiColor=p=>p>=70?'var(--green)':p>=40?'var(--accent)':'var(--red)';
+  const kpiCls=p=>p>=70?'good':p>=40?'mid':'low';
+
+  // ---------- 始终显示所有面板 ----------
+  try{se("#revEmptyGuide",false);["#rvTaskPanel","#rvFocusPanel","#rvHabitPanel","#rvSchedPanel"].forEach(p=>se(p,true));se("#revAISummary",true);se("#revCal",true);}catch(e){}
+
+  // ---------- ① KPI 大盘：SVG环形图 ----------
   try{
-    hideEl("#revEmptyGuide");
-    ["#rvTaskPanel","#rvFocusPanel","#rvHabitPanel","#rvSchedPanel"].forEach(p=>showEl(p));
-    showEl("#revAISummary");
-  }catch(e){}
+    let h='';
+    h+='<div class="kpi-card '+kpiCls(rate)+'"><div class="kpi-ring">'+ringSvg(rate,kpiCls(rate))+'<span class="kpi-val">'+rate+'%</span></div><div class="kpi-label">任务完成率</div><div class="kpi-sub">'+doneT.length+'/'+planned.length+' 任务</div></div>';
+    h+='<div class="kpi-card '+kpiCls(schedRate)+'"><div class="kpi-ring">'+ringSvg(schedRate,kpiCls(schedRate))+'<span class="kpi-val">'+schedRate+'%</span></div><div class="kpi-label">日程执行率</div><div class="kpi-sub">'+schedDone.length+'/'+schedT.length+' 日程</div></div>';
+    h+='<div class="kpi-card '+(focusMin>=120?"good":focusMin>=60?"mid":"low")+'"><div class="kpi-ring kpi-ring-num"><svg viewBox="0 0 72 72" class="kpi-svg"><circle cx="36" cy="36" r="28" fill="none" stroke="var(--line)" stroke-width="6"/></svg><span class="kpi-val kpi-val-big">'+(focusMin>=60?Math.round(focusMin/6)/10+'h':Math.round(focusMin)+'m')+'</span></div><div class="kpi-label">专注时长</div><div class="kpi-sub">'+pomoCnt+' 次记录</div></div>';
+    h+='<div class="kpi-card '+kpiCls(habitRate)+'"><div class="kpi-ring">'+ringSvg(habitRate,kpiCls(habitRate))+'<span class="kpi-val">'+habitRate+'%</span></div><div class="kpi-label">习惯达成率</div><div class="kpi-sub">'+habitDays+'/'+rangeLen+' 天打卡</div></div>';
+    sw("#revSummary",h);
+  }catch(e){console.error("[复盘] KPI失败",e);sw("#revSummary",ec("KPI渲染异常"));}
 
-  // ---------- KPI 大盘（纯数字，无SVG环） ----------
+  // 日统计（7/14天完成趋势）
+  const dailyDone=dates.map(ds=>planned.filter(t=>t.done&&t.due===ds).length);
+  const dailyPlan=dates.map(ds=>planned.filter(t=>t.due===ds).length);
+  const taskDayLabels=isYear?dates.map(m=>+m.slice(5)+"月"):dates.map(ds=>isDay?ds.slice(5).replace("-","/"):+ds.slice(8));
+
+  // ---------- ② 任务复盘 ----------
   try{
-    let kpi="";
-    kpi+='<div class="kpi-card '+(rate>=70?"good":rate>=40?"ok":rate>0?"warn":"low")+'">';
-    kpi+='<div class="kpi-num">'+rate+'%</div><div class="kpi-unit">'+doneT.length+'/'+planned.length+'项</div>';
-    kpi+='<div class="kpi-label">任务完成率</div></div>';
+    se("#rvTaskPanel",true);
+    // 面板标题徽章
+    try{const badge=$("#rvTaskBadge");if(badge){badge.textContent=rate>=80?"优秀":rate>=60?"良好":rate>0?"加油":"待开始";badge.className="rv-panel-badge "+kpiCls(rate);}}catch(e){}
 
-    kpi+='<div class="kpi-card '+(schedRate>=70?"good":schedRate>=40?"ok":schedRate>0?"warn":"low")+'">';
-    kpi+='<div class="kpi-num">'+schedRate+'%</div><div class="kpi-unit">'+schedDone.length+'/'+schedT.length+'条</div>';
-    kpi+='<div class="kpi-label">日程执行率</div></div>';
-
-    kpi+='<div class="kpi-card '+(focusMin>=120?"good":focusMin>=60?"ok":focusMin>0?"warn":"low")+'">';
-    kpi+='<div class="kpi-num">'+Math.round(focusMin)+'</div><div class="kpi-unit">分钟</div>';
-    kpi+='<div class="kpi-label">专注时长</div></div>';
-
-    kpi+='<div class="kpi-card '+(habitRate>=70?"good":habitRate>=40?"ok":habitRate>0?"warn":"low")+'">';
-    kpi+='<div class="kpi-num">'+habitRate+'%</div><div class="kpi-unit">'+habitDays+'/'+rangeLen+'天</div>';
-    kpi+='<div class="kpi-label">习惯达成率</div></div>';
-    safeWrite("#revSummary",kpi);
-  }catch(e){console.error("[复盘] KPI渲染失败",e);safeWrite("#revSummary",emptyCard(ERR_TIP));}
-
-  // ---------- 任务复盘 ----------
-  try{
-    if(!totalData && planned.length>0){
+    if(!total && planned.length>0){
       let html='<div class="rv-mini-grid">';
-      html+='<div class="ms"><b>'+planned.length+'</b><span>任务总数</span></div>';
+      html+='<div class="ms"><b>'+planned.length+'</b><span>计划数</span></div>';
       html+='<div class="ms"><b>'+doneT.length+'</b><span>已完成</span></div>';
-      html+='<div class="ms"><b>'+(planned.length-doneT.length)+'</b><span>进行中</span></div>';
-      if(overdueCnt>0)html+='<div class="ms"><b>'+overdueCnt+'</b><span>已逾期</span></div>';
+      html+='<div class="ms"><b>'+(planned.length-doneT.length)+'</b><span>未完成</span></div>';
+      if(autoNew>0)html+='<div class="ms"><b>'+autoNew+'</b><span>新增</span></div>';
       html+='</div>';
-      safeWrite("#revTaskStats",html);
-    }else safeWrite("#revTaskStats",emptyCard(EMPTY_TIP));
-    // 隐藏旧canvas图表区
-    safeHide("#revTaskPie");safeHide("#revTaskTrend");
-    try{$("#revTaskClass").innerHTML='';}catch(e){}
-  }catch(e){console.error("[复盘] 任务面板失败",e);safeWrite("#revTaskStats",emptyCard(ERR_TIP));}
+      sw("#revTaskStats",html);
 
-  // ---------- 专注复盘 ----------
+      // 饼图：完成/未完成 分布
+      try{
+        const pie=$("#revTaskPie");if(pie){se("#revTaskPie",true);
+          const {ctx,w,h}=prepCv(pie);
+          const cx=w/2,cy=h*0.4,R=Math.min(w,h)/2-20;
+          const total=planned.length;
+          ctx.clearRect(0,0,w,h);
+          if(total>0){
+            const slices=[
+              {v:doneT.length,c:getComputedStyle(document.body).getPropertyValue("--green").trim()||"#84c3b7",l:"已完成"},
+              {v:total-doneT.length,c:"#E5DFD7",l:"未完成"}
+            ];
+            let a=-Math.PI/2;
+            slices.forEach(s=>{
+              const ang=s.v/total*2*Math.PI;
+              ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,R,a,a+ang);ctx.closePath();
+              ctx.fillStyle=s.c;ctx.fill();
+              ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();
+              a+=ang;
+            });
+            // 圆心文字
+            ctx.fillStyle="#1C1C1E";ctx.font="600 22px sans-serif";ctx.textAlign="center";
+            ctx.fillText(rate+"%",cx,cy+6);
+            ctx.fillStyle="#8E8E93";ctx.font="11px sans-serif";
+            ctx.fillText("完成率",cx,cy+22);
+            // 图例
+            ctx.textAlign="left";
+            ctx.fillStyle=slices[0].c;ctx.fillRect(10,h-24,10,10);ctx.fillStyle="#1C1C1E";ctx.font="11px sans-serif";ctx.fillText("已完成 "+doneT.length,24,h-15);
+            ctx.fillStyle=slices[1].c;ctx.fillRect(10,h-10,10,10);ctx.fillText("未完成 "+(total-doneT.length),24,h-1);
+          }
+        }
+      }catch(e){console.error("[复盘] 饼图失败",e);}
+
+      // 折线图：每日完成趋势
+      try{
+        const ln=$("#revTaskTrend");if(ln){se("#revTaskTrend",true);
+          drawLine(ln,taskDayLabels,dailyDone,dailyPlan);
+        }
+      }catch(e){console.error("[复盘] 趋势图失败",e);}
+
+      // 任务分类列表（按清单/标签分组）
+      try{
+        const classMap={};planned.forEach(t=>{const lid=t.listId||"_none";const l=lists.find(x=>x.id===lid);const key=l?l.name:"未分类";if(!classMap[key])classMap[key]={name:key,color:l?l.color:"#B5B0A9",cnt:0};classMap[key].cnt++;});
+        const classList=Object.values(classMap).sort((a,b)=>b.cnt-a.cnt);
+        if(classList.length>0){
+          let cl='<div class="rv-chart-title" style="text-align:left;margin-top:4px">任务分类分布</div>';
+          cl+=classList.map(c=>'<div class="tc-row"><span class="tc-dot" style="background:'+c.color+'"></span><span class="tc-name">'+esc(c.name)+'</span><span class="tc-cnt">'+c.cnt+'项</span><div class="tc-bar"><i style="width:'+Math.round(c.cnt/planned.length*100)+'%;background:'+c.color+'"></i></div></div>').join('');
+          sw("#revTaskClass",cl);
+        }else{sw("#revTaskClass","");}
+      }catch(e){console.error("[复盘] 任务分类失败",e);}
+    }else{
+      sw("#revTaskStats",ec(ET));se("#revTaskPie",false);se("#revTaskTrend",false);sw("#revTaskClass","");
+    }
+  }catch(e){console.error("[复盘] 任务面板失败",e);sw("#revTaskStats",ec("渲染异常"));}
+
+  // ---------- ③ 专注复盘 ----------
   try{
-    if(!totalData && recs.length>0){
+    se("#rvFocusPanel",true);
+    try{const badge=$("#rvFocusBadge");if(badge){badge.textContent=pomoCnt>=10?"高效":pomoCnt>=3?"不错":pomoCnt>0?"继续":"待开始";badge.className="rv-panel-badge "+(focusMin>=120?"good":focusMin>=60?"mid":"low");}}catch(e){}
+    if(!total && recs.length>0){
+      const focusDays=[...new Set(recs.map(r=>r.date).filter(Boolean))].length;
       let html='<div class="rv-mini-grid">';
-      html+='<div class="ms"><b>'+pomoCnt+'</b><span>专注次数</span></div>';
-      html+='<div class="ms"><b>'+Math.round(focusMin)+'</b><span>总时长(分钟)</span></div>';
-      html+='<div class="ms"><b>'+avgMin+'</b><span>次均(分钟)</span></div>';
-      html+='<div class="ms"><b>'+(Math.round(focusMin/rangeLen*10)/10||0)+'</b><span>日均(分钟)</span></div>';
+      html+='<div class="ms"><b>'+Math.round(focusMin/6)/10+'</b><span>总时长(h)</span></div>';
+      html+='<div class="ms"><b>'+pomoCnt+'</b><span>番茄数</span></div>';
+      html+='<div class="ms"><b>'+avgMin+'</b><span>平均(min)</span></div>';
+      html+='<div class="ms"><b>'+focusDays+'</b><span>专注天数</span></div>';
       html+='</div>';
-      safeWrite("#revFocusStats",html);
-    }else safeWrite("#revFocusStats",emptyCard(EMPTY_TIP));
-    safeHide("#revFocusBars");
-    try{$("#revFocusHeat").innerHTML='';}catch(e){}
-  }catch(e){console.error("[复盘] 专注面板失败",e);safeWrite("#revFocusStats",emptyCard(ERR_TIP));}
+      sw("#revFocusStats",html);
 
-  // ---------- 习惯打卡 ----------
+      // 柱状图：每日专注时长
+      try{
+        const fBar=$("#revFocusBars");if(fBar){se("#revFocusBars",true);
+          const dailyFocus=dates.map(ds=>recs.filter(r=>r.date===ds||(isYear&&String(r.date||"").slice(0,7)===ds)).reduce((s,r)=>s+(+(r&&r.minutes)||0),0));
+          drawBars(fBar,taskDayLabels,dailyFocus,"#6F9FD6");
+        }
+      }catch(e){console.error("[复盘] 专注柱状图失败",e);}
+
+      // 热点图：周一~周日
+      try{
+        const heat=$("#revFocusHeat");if(heat){
+          heat.innerHTML='';
+          const dayNames=["一","二","三","四","五","六","日"];
+          const maxWk=Math.max(...wk,1);
+          dayNames.forEach((n,i)=>{
+            const d=document.createElement("div");d.className="fh-day";
+            d.innerHTML='<div class="fh-bar" style="height:'+Math.max(4,Math.round(wk[i]/maxWk*60))+'px;background:#6F9FD6"></div><div class="fh-val">'+(wk[i]>=60?Math.round(wk[i]/6)/10+'h':wk[i]+'m')+'</div><div class="fh-label">'+n+'</div>';
+            heat.appendChild(d);
+          });
+        }
+      }catch(e){console.error("[复盘] 专注热力图失败",e);}
+    }else{
+      sw("#revFocusStats",ec(ET));se("#revFocusBars",false);try{$("#revFocusHeat").innerHTML='';}catch(e){}
+    }
+  }catch(e){console.error("[复盘] 专注面板失败",e);sw("#revFocusStats",ec("渲染异常"));}
+
+  // ---------- ④ 习惯打卡 ----------
   try{
-    if(!totalData && hd.length>0){
-      let html='<div class="rev-habit-list">';
+    se("#rvHabitPanel",true);
+    try{const badge=$("#rvHabitBadge");if(badge){badge.textContent=habitRate>=80?"超棒":habitRate>=50?"良好":habitRate>0?"坚持":"待开始";badge.className="rv-panel-badge "+kpiCls(habitRate);}}catch(e){}
+    if(!total && hd.length>0){
+      let html='<div class="rv-habit-rows">';
       html+=hd.map(item=>{
         const name=item.h&&item.h.name?esc(item.h.name):"习惯";
+        const emoji=item.h&&item.h.emoji?item.h.emoji:"✅";
+        const color=item.h&&item.h.color?item.h.color:(kpiColor(item.rate||0));
         const r=item.rate||0;
-        const barColor=r>=70?"var(--green)":r>=40?"var(--accent)":"var(--red)";
-        return '<div class="rev-habit-row">'+
-          '<span class="rev-habit-name">'+name+'</span>'+
-          '<span class="rev-habit-count">打卡 '+item.c+'/'+rangeLen+' 天</span>'+
-          '<div class="rev-habit-bar"><div class="rev-habit-fill" style="width:'+Math.min(r,100)+'%;background:'+barColor+'"></div></div>'+
-          '<span class="rev-habit-rate" style="color:'+barColor+'">'+r+'%</span></div>';
+        const barColor=kpiColor(r);
+        return '<div class="habit-row">'
+          +'<span class="dot" style="background:'+color+'"></span>'
+          +'<b>'+emoji+' '+name+'</b>'
+          +'<span class="hr">连续'+(item.streak||0)+'天 · 完成率'+r+'%</span>'
+          +'</div>';
       }).join('');
       html+='</div>';
-      safeWrite("#revHabitStats",html);
-    }else safeWrite("#revHabitStats",emptyCard(EMPTY_TIP));
+      sw("#revHabitStats",html);
+    }else{sw("#revHabitStats",ec(ET));}
     try{$("#revHabitBest").innerHTML='';}catch(e){}
-  }catch(e){console.error("[复盘] 习惯面板失败",e);safeWrite("#revHabitStats",emptyCard(ERR_TIP));}
+    // 日历热力图
+    try{renderRevCal();}catch(e){console.error("[复盘] 日历失败",e);}
+  }catch(e){console.error("[复盘] 习惯面板失败",e);sw("#revHabitStats",ec("渲染异常"));}
 
-  // ---------- 日程执行 ----------
+  // ---------- ⑤ 日程执行 ----------
   try{
-    if(!totalData && schedT.length>0){
+    se("#rvSchedPanel",true);
+    try{const badge=$("#rvSchedBadge");if(badge){badge.textContent=schedRate>=80?"优秀":schedRate>=60?"良好":schedRate>0?"加油":"待开始";badge.className="rv-panel-badge "+kpiCls(schedRate);}}catch(e){}
+    if(!total && schedT.length>0){
       let html='<div class="rv-mini-grid">';
-      html+='<div class="ms"><b>'+schedT.length+'</b><span>日程总数</span></div>';
+      html+='<div class="ms"><b>'+schedT.length+'</b><span>计划日程</span></div>';
       html+='<div class="ms"><b>'+schedDone.length+'</b><span>已完成</span></div>';
       html+='<div class="ms"><b>'+liftUndone+'</b><span>未完成</span></div>';
-      html+='<div class="ms"><b>'+schedRate+'%</b><span>执行率</span></div>';
       html+='</div>';
-      safeWrite("#revSchedStats",html);
-    }else safeWrite("#revSchedStats",emptyCard(EMPTY_TIP));
-    safeHide("#revUtil");
-    try{$("#revUtilLegend").innerHTML='';}catch(e){}
-  }catch(e){console.error("[复盘] 日程面板失败",e);safeWrite("#revSchedStats",emptyCard(ERR_TIP));}
+      sw("#revSchedStats",html);
 
-  // ---------- AI 智能小结 ----------
-  try{
-    if(!totalData){
-      let ai='<div class="rv-panel-hd"><h3>🤖 AI 智能小结</h3></div><div class="rv-panel-body">';
-      const lines=[];
-      if(rate>0)lines.push('📊 任务完成率 <span class="ai-highlight">'+rate+'%</span>，共 '+planned.length+' 项任务');
-      if(schedRate>0)lines.push('🗓️ 日程执行率 <span class="ai-highlight">'+schedRate+'%</span>，'+schedT.length+' 条日程');
-      if(focusMin>0)lines.push('🍅 累计专注 <span class="ai-highlight">'+Math.round(focusMin)+' 分钟</span>');
-      if(habitRate>0)lines.push('✅ 习惯打卡达成率 <span class="ai-highlight">'+habitRate+'%</span>');
-      if(trend)lines.push('📈 完成趋势 <span class="ai-highlight">'+trend+'</span>');
-      if(lines.length===0)lines.push('📝 暂无足够数据进行智能分析，开始记录你的日常吧✨');
-      ai+=lines.map(l=>'<div class="rev-ai-row">'+l+'</div>').join("");
-      ai+='</div>';
-      safeWrite("#revAISummary",ai);
+      // 柱状图：每日日程数量
+      try{
+        const sc=$("#revUtil");if(sc){se("#revUtil",true);
+          drawBars(sc,taskDayLabels,utilVals,"#9B8EC9");
+        }
+      }catch(e){console.error("[复盘] 日程柱状图失败",e);}
+      try{sw("#revUtilLegend",'<span>每日带日程任务数</span>');}catch(e){}
     }else{
-      safeWrite("#revAISummary",'<div class="rv-panel-hd"><h3>🤖 AI 智能小结</h3></div><div class="rv-panel-body"><div class="rev-ai-row">📝 暂无足够数据，开始行动后就会生成智能复盘分析✨</div></div>');
+      sw("#revSchedStats",ec(ET));se("#revUtil",false);try{$("#revUtilLegend").innerHTML='';}catch(e){}
+    }
+  }catch(e){console.error("[复盘] 日程面板失败",e);sw("#revSchedStats",ec("渲染异常"));}
+
+  // ---------- ⑥ AI 智能小结 ----------
+  try{
+    if(!total){
+      const lines=[];
+      if(rate>0)lines.push({t:'📊 任务完成率 <b>'+rate+'%</b>（'+doneT.length+'/'+planned.length+'），共 '+planned.length+' 项任务',s:rate>=70?'good':''});
+      if(schedRate>0)lines.push({t:'🗓️ 日程执行率 <b>'+schedRate+'%</b>，'+schedT.length+' 条日程，'+liftUndone+' 条待完成',s:schedRate>=70?'good':''});
+      if(focusMin>0)lines.push({t:'🍅 累计专注 <b>'+Math.round(focusMin/6)/10+' 小时</b>，日均 '+(Math.round(focusMin/rangeLen))+' 分钟',s:focusMin>=120?'good':''});
+      if(habitRate>0)lines.push({t:'✅ 习惯打卡达成率 <b>'+habitRate+'%</b>，'+habitDays+'/'+rangeLen+' 天有打卡记录',s:habitRate>=70?'good':''});
+      if(trend)lines.push({t:'📈 趋势对比：'+trend,s:''});
+      if(overdueCnt>0)lines.push({t:'⚠️ 逾期任务 <b>'+overdueCnt+'</b> 项，建议及时处理',s:'warn'});
+      if(lines.length===0)lines.push({t:'📝 暂无足够数据生成智能复盘，开始记录就会分析啦 ✨',s:''});
+
+      let ai='<div class="rv-panel-hd"><h3>🤖 AI 智能小结</h3></div><div class="rv-panel-body">';
+      ai+='<div class="ai-body">'+lines.map(l=>'<div class="pp'+(l.s?' '+l.s:'')+'">'+l.t+'</div>').join('')+'</div>';
+      ai+='</div>';
+      sw("#revAISummary",ai);
+    }else{
+      sw("#revAISummary",'<div class="rv-panel-hd"><h3>🤖 AI 智能小结</h3></div><div class="rv-panel-body"><div class="ai-body"><div class="pp">📝 暂无足够数据，开始记录行动后，AI 会为你生成详细复盘分析 ✨</div></div></div>');
     }
   }catch(e){console.error("[复盘] AI小结失败",e);}
 
-  /* 日历热力图 */
-  try{renderRevCal();}catch(e){console.error("[复盘] 日历渲染失败",e);}
+  // 日历热力图（如果不在习惯面板内）
+  try{renderRevCal();}catch(e){console.error("[复盘] 日历失败",e);}
+
+  // 示例数据入口（数据为空时显示）
+  if(total && !state.revDemoDismissed){try{paintReviewDemo(dates,isDay,isYear);}catch(e){console.error("[复盘] 示例失败",e);}}
 
 }  /* end paintReview */
 /* v45：示例复盘预览 —— 该周期无任何成果数据时，渲染一套完整可视化（图表+统计+夸夸），
@@ -2967,41 +3054,46 @@ function paintReviewDemo(dates,isDay,isYear){
   const safeWrite=(id,html)=>{const el=$(id);if(!el)return;try{el.innerHTML=html;}catch(e){}};
   const showEl=s=>{const el=$(s);if(el)el.style.display="";};
 
-  /* 概览 */
+  /* 概览 — 对齐参考图 KPI SVG环形 */
+  const ringSvg=(pct,cls)=>{const c=Math.max(0,Math.min(100,pct||0));const C=2*Math.PI*28;const o=C*(1-c/100);return'<svg viewBox="0 0 72 72" class="kpi-svg"><circle cx="36" cy="36" r="28" fill="none" stroke="var(--line)" stroke-width="6"/><circle cx="36" cy="36" r="28" fill="none" stroke="var(--c,'+cls+')" stroke-width="6" stroke-dasharray="'+C+'" stroke-dashoffset="'+o+'" stroke-linecap="round" transform="rotate(-90 36 36)" class="kpi-arc '+cls+'"/></svg>';};
+  const kCls=p=>p>=70?'good':p>=40?'mid':'low';
   safeWrite("#revSummary",
-    `<div class="scard"><b>${rate}%</b><span>任务完成率 🎯 ↑5%</span></div>`+
-    `<div class="scard"><b>${schedRate}%</b><span>日程达标率 🗓️</span></div>`+
-    `<div class="scard"><b>${hrs(focusMin)}</b><span>专注小时 ⏱️</span></div>`+
-    `<div class="scard"><b>${habitRate}%</b><span>习惯达成率 📅</span></div>`+
-    `<div class="scard"><b>${plannedN}</b><span>有效任务 📋</span></div>`+
-    `<div class="scard"><b>${overdueCnt}</b><span>逾期任务 ⚠️</span></div>`);
+    '<div class="kpi-card '+kCls(rate)+'"><div class="kpi-ring">'+ringSvg(rate,kCls(rate))+'<span class="kpi-val">'+rate+'%</span></div><div class="kpi-label">任务完成率</div><div class="kpi-sub">'+doneN+'/'+plannedN+' 任务</div></div>'+
+    '<div class="kpi-card '+kCls(schedRate)+'"><div class="kpi-ring">'+ringSvg(schedRate,kCls(schedRate))+'<span class="kpi-val">'+schedRate+'%</span></div><div class="kpi-label">日程执行率</div><div class="kpi-sub">'+schedDone+'/'+schedT+' 日程</div></div>'+
+    '<div class="kpi-card '+(focusMin>=120?'good':focusMin>=60?'mid':'low')+'"><div class="kpi-ring kpi-ring-num"><svg viewBox="0 0 72 72" class="kpi-svg"><circle cx="36" cy="36" r="28" fill="none" stroke="var(--line)" stroke-width="6"/></svg><span class="kpi-val kpi-val-big">'+hrs(focusMin)+'h</span></div><div class="kpi-label">专注时长</div><div class="kpi-sub">'+pomoCnt+' 次记录</div></div>'+
+    '<div class="kpi-card '+kCls(habitRate)+'"><div class="kpi-ring">'+ringSvg(habitRate,kCls(habitRate))+'<span class="kpi-val">'+habitRate+'%</span></div><div class="kpi-label">习惯达成率</div><div class="kpi-sub">'+habitDays+'/'+rangeLen+' 天</div></div>');
+  /* 任务面板 */
+  safeWrite("#revTaskStats",
+    '<div class="ms"><b>'+plannedN+'</b><span>计划数</span></div>'+
+    '<div class="ms"><b>'+doneN+'</b><span>已完成</span></div>'+
+    '<div class="ms"><b>'+(plannedN-doneN)+'</b><span>未完成</span></div>'+
+    '<div class="ms"><b>'+autoNew+'</b><span>新增</span></div>');
+  showEl("#rvTaskPanel");showEl("#revTaskPie");showEl("#revTaskTrend");
+  try{const pie=$("#revTaskPie");if(pie){const {ctx,w,h}=prepCv(pie);ctx.clearRect(0,0,w,h);const cx=w/2,cy=h*0.4,R=Math.min(w,h)/2-20;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,R,-Math.PI/2,-Math.PI/2+doneN/plannedN*2*Math.PI);ctx.closePath();ctx.fillStyle='#84c3b7';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,R,-Math.PI/2+doneN/plannedN*2*Math.PI,-Math.PI/2+2*Math.PI);ctx.closePath();ctx.fillStyle='#E5DFD7';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#1C1C1E';ctx.font='600 22px sans-serif';ctx.textAlign='center';ctx.fillText(rate+'%',cx,cy+6);ctx.fillStyle='#8E8E93';ctx.font='11px sans-serif';ctx.fillText('完成率',cx,cy+22);}}catch(e){}
+  try{const ln=$("#revTaskTrend");if(ln){const dailyDone=dates.map((_,i)=>isYear?(doneN/12|0)*(1+Math.round(Math.sin(i/2)*0.3)):plannedN/rangeLen*(0.6+Math.random()*0.4));drawLine(ln,dayLabels,dailyDone.map(v=>Math.round(v)),dates.map((_,i)=>Math.round(dailyDone[i]*1.3)));}}catch(e){}
+  /* 任务分类 */
+  safeWrite("#revTaskClass",'<div class="tc-row"><span class="tc-dot" style="background:#84c3b7"></span><span class="tc-name">示例任务</span><span class="tc-cnt">'+plannedN+'项</span><div class="tc-bar"><i style="width:100%;background:#84c3b7"></i></div></div>');
   /* 日程执行 */
   safeWrite("#revSchedStats",
-    `<div class="ms"><b>${liftTotal}</b><span>排程任务</span></div>`+
-    `<div class="ms"><b>${liftDone}</b><span>已完成</span></div>`+
-    `<div class="ms"><b>${liftUndone}</b><span>未完成</span></div>`+
-    `<div class="ms"><b>${autoNew}</b><span>当日新建排程</span></div>`);
+    '<div class="ms"><b>'+liftTotal+'</b><span>计划日程</span></div>'+
+    '<div class="ms"><b>'+liftDone+'</b><span>已完成</span></div>'+
+    '<div class="ms"><b>'+liftUndone+'</b><span>未完成</span></div>');
   showEl("#revUtil");
-  safeDraw(()=>drawBars($("#revUtil"),dayLabels,utilVals,"#9B8EC9"));
-  safeWrite("#revUtilLegend",`<span>每日排程任务数（时间利用率）</span>`);
+  try{drawBars($("#revUtil"),dayLabels,utilVals,"#9B8EC9");}catch(e){}
+  safeWrite("#revUtilLegend",'<span>每日带日程任务数</span>');
   /* 番茄专注 */
   safeWrite("#revFocusStats",
-    `<div class="ms"><b>${hrs(focusMin)}</b><span>总专注(h)</span></div>`+
-    `<div class="ms"><b>${pomoCnt}</b><span>有效番茄</span></div>`+
-    `<div class="ms"><b>${avgMin}</b><span>平均单次(分)</span></div>`);
-  showEl("#revFocusHeat");showEl("#revFocusTrend");
-  safeDraw(()=>drawBars($("#revFocusHeat"),["一","二","三","四","五","六","日"],wkBase.map(m=>hrs(m)),"#6F9FD6"));
-  safeWrite("#revFocusHeatLegend",`<span>各星期专注时长(h) · 黄金时段一目了然</span>`);
-  safeDraw(()=>drawLine($("#revFocusTrend"),dayLabels,focusTrend,focusTrend.map(v=>Math.round(v*1.3*10)/10)));
+    '<div class="ms"><b>'+hrs(focusMin)+'</b><span>总时长(h)</span></div>'+
+    '<div class="ms"><b>'+pomoCnt+'</b><span>番茄数</span></div>'+
+    '<div class="ms"><b>'+avgMin+'</b><span>平均(min)</span></div>'+
+    '<div class="ms"><b>'+rangeLen+'</b><span>专注天数</span></div>');
+  showEl("#revFocusBars");
+  try{drawBars($("#revFocusBars"),dayLabels,dates.map((_,i)=>wkBase[i%7]/60),"#6F9FD6");}catch(e){}
+  try{const heat=$("#revFocusHeat");if(heat){heat.innerHTML='';["一","二","三","四","五","六","日"].forEach((n,i)=>{const d=document.createElement("div");d.className="fh-day";const mx=Math.max(...wkBase,1);d.innerHTML='<div class="fh-bar" style="height:'+Math.round(wkBase[i]/mx*60)+'px;background:#6F9FD6"></div><div class="fh-val">'+Math.round(wkBase[i]/6)/10+'h</div><div class="fh-label">'+n+'</div>';heat.appendChild(d);});}}catch(e){}
   /* 习惯打卡 */
-  safeWrite("#revHabitStats",demoHd.map(o=>`<div class="habit-row"><span class="dot" style="background:${o.h.color}"></span><b>${o.h.emoji} ${esc(o.h.name)}</b><span class="hr">连续${o.streak}天 · 完成率${o.rate}%</span></div>`).join(""));
-  /* 夸夸 + 改进：复用现有函数，传示例 ctx 生成基于示例数字的文案 */
-  const demoTasks=[];
-  for(let i=0;i<doneN;i++)demoTasks.push({done:true,abandoned:false,due:dates[i%rangeLen],time:"10:00",listId:null});
-  const revCtx={planned:demoTasks,doneT:demoTasks.filter(t=>t.done),rate,schedRate,schedDone:liftDone,schedTotal:liftTotal,
-    focusMin,pomoCnt,avgMin,habitRate,habitDays,overdueCnt,prevRate:Math.max(rate-5,0),hd:demoHd,dates,isYear,isDay,lists:state.lists||[],tasks:state.tasks||[]};
-  try{buildPraise(revCtx);}catch(e){console.error("示例夸夸失败",e);}
-  try{buildImprove(revCtx);}catch(e){console.error("示例改进失败",e);}
+  safeWrite("#revHabitStats",demoHd.map(o=>'<div class="habit-row"><span class="dot" style="background:'+o.h.color+'"></span><b>'+o.h.emoji+' '+esc(o.h.name)+'</b><span class="hr">连续'+o.streak+'天 · 完成率'+o.rate+'%</span></div>').join(''));
+  /* AI 小结 */
+  safeWrite("#revAISummary",'<div class="rv-panel-hd"><h3>🤖 AI 智能小结（示例）</h3></div><div class="rv-panel-body"><div class="ai-body"><div class="pp">📊 任务完成率 <b>'+rate+'%</b>（'+doneN+'/'+plannedN+'）</div><div class="pp good">🍅 专注时长 <b>'+hrs(focusMin)+'h</b></div><div class="pp">✅ 习惯达成率 <b>'+habitRate+'%</b></div><div class="pp">📝 以上为示例数据，开始记录后会自动替换为真实复盘</div></div></div>');
   /* 日历热力图：示例着色 */
   renderRevCalDemo();
 }
