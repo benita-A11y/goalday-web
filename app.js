@@ -2368,16 +2368,17 @@ function revAnchorDate(){
 }
 function revRange(){
   const dim=state.reviewDim,anc=revAnchorDate();
-  if(dim==="day"){const ds=todayStr();const now=new Date();return {dates:[ds],label:`当前查看：${now.getMonth()+1}月${now.getDate()}日 ${DAY_NAMES[(now.getDay()+6)%7]}`,isDay:true,isYear:false};}
+  if(dim==="day"){const ds=todayStr();const now=new Date();const dLabel=`${now.getFullYear()}年 ${now.getMonth()+1}月${now.getDate()}日`;return {dates:[ds],label:`当前查看：${dLabel}`,displayLabel:dLabel,isDay:true,isYear:false};}
   if(dim==="week"){
     const m=new Date(anc);m.setHours(0,0,0,0);m.setDate(m.getDate()-((m.getDay()+6)%7));
     const ds=[];for(let i=0;i<7;i++){const d=new Date(m);d.setDate(m.getDate()+i);ds.push(fmtDate(d));}
     const wk=isoWeek(m);
     const s0=ds[0].slice(5).replace("-","."),s6=ds[6].slice(5).replace("-",".");
-    return {dates:ds,label:`当前查看：第${wk}周｜${s0}‑${s6}`,isDay:false,isYear:false};
+    const dLabel=`${s0} - ${s6}`;
+    return {dates:ds,label:`当前查看：第${wk}周｜${s0}‑${s6}`,displayLabel:dLabel,isDay:false,isYear:false};
   }
-  if(dim==="month"){const y=anc.getFullYear(),m=anc.getMonth();const n=new Date(y,m+1,0).getDate();const ds=[];for(let i=1;i<=n;i++)ds.push(fmtDate(new Date(y,m,i)));return {dates:ds,label:`当前查看：${y}-${String(m+1).padStart(2,"0")}月`,isDay:false,isYear:false};}
-  const y=anc.getFullYear();const ds=[];for(let m=0;m<12;m++)ds.push(`${y}-${String(m+1).padStart(2,"0")}`);return {dates:ds,label:`当前查看：${y}年`,isDay:false,isYear:true};
+  if(dim==="month"){const y=anc.getFullYear(),m=anc.getMonth();const n=new Date(y,m+1,0).getDate();const ds=[];for(let i=1;i<=n;i++)ds.push(fmtDate(new Date(y,m,i)));const dLabel=`${y}年${m+1}月`;return {dates:ds,label:`当前查看：${y}-${String(m+1).padStart(2,"0")}月`,displayLabel:dLabel,isDay:false,isYear:false};}
+  const y=anc.getFullYear();const ds=[];for(let m=0;m<12;m++)ds.push(`${y}-${String(m+1).padStart(2,"0")}`);const dLabel=`${y}年`;return {dates:ds,label:`当前查看：${y}年`,displayLabel:dLabel,isDay:false,isYear:true};
 }
 function revRangeShifted(dim){
   const anc=revAnchorDate();
@@ -2385,6 +2386,80 @@ function revRangeShifted(dim){
   if(dim==="week"){const m=new Date(anc);m.setHours(0,0,0,0);m.setDate(m.getDate()-7-((m.getDay()+6)%7));const out=[];for(let i=0;i<7;i++){const d=new Date(m);d.setDate(m.getDate()+i);out.push(fmtDate(d));}return out;}
   if(dim==="month"){const y=anc.getFullYear(),m=anc.getMonth()-1;const n=new Date(y,m+1,0).getDate();const out=[];for(let i=1;i<=n;i++)out.push(fmtDate(new Date(y,m,i)));return out;}
   const y=anc.getFullYear()-1;const out=[];for(let m=0;m<12;m++)out.push(`${y}-${String(m+1).padStart(2,"0")}`);return out;
+}
+/* v55：日历选择器 —— 点击日期标签弹出小日历，类似 TickTick / Notion 风格 */
+function toggleRevCalendar(range){
+  let pop=$("#revCalendarPopup");
+  if(pop && pop.style.display!=="none"){pop.remove();return;}
+  if(pop)pop.remove();
+  pop=document.createElement("div");pop.id="revCalendarPopup";pop.className="rev-cal-popup";
+  const dim=state.reviewDim;
+  const anc=revAnchorDate();
+  let calYear=anc.getFullYear(),calMonth=anc.getMonth(); // 0-based month for display
+  function renderCal(){
+    const monthNames=["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+    const today=new Date();
+    const firstDay=new Date(calYear,calMonth,1);
+    const lastDay=new Date(calYear,calMonth+1,0);
+    const totalDays=lastDay.getDate();
+    const startDow=(firstDay.getDay()+6)%7; // Mon=0
+    let html='<div class="rcp-header">'
+      +'<button class="rcp-nav" id="rcpPrev">◀</button>'
+      +'<span class="rcp-title">'+calYear+'年 '+monthNames[calMonth]+'</span>'
+      +'<button class="rcp-nav" id="rcpNext">▶</button>'
+      +'</div>'
+      +'<div class="rcp-weekdays">'+["一","二","三","四","五","六","日"].map(d=>'<span>'+d+'</span>').join('')+'</div>'
+      +'<div class="rcp-grid">';
+    for(let i=0;i<startDow;i++)html+='<span class="rcp-day empty"></span>';
+    for(let d=1;d<=totalDays;d++){
+      const date=new Date(calYear,calMonth,d);
+      const ds=fmtDate(date);
+      const isToday=ds===todayStr();
+      const inRange=range&&range.dates&&(range.isYear?range.dates.includes(ds.slice(0,7)):range.dates.includes(ds));
+      // 高亮：如果是周维度→高亮整周；月维度→高亮所在月份；年维度→高亮所在年份
+      const selDate=revAnchorDate();
+      const selDs=fmtDate(selDate);
+      let isSel=false;
+      if(dim==="week"){
+        const selM=new Date(selDate);selM.setDate(selM.getDate()-((selM.getDay()+6)%7));
+        const calM=new Date(date);calM.setDate(calM.getDate()-((calM.getDay()+6)%7));
+        isSel=fmtDate(selM)===fmtDate(calM);
+      }else if(dim==="month"){
+        isSel=selDate.getFullYear()===calYear&&selDate.getMonth()===calMonth;
+      }else{
+        isSel=selDate.getFullYear()===calYear;
+      }
+      html+='<button class="rcp-day'+(isToday?' today':'')+(isSel?' sel':'')+'" data-date="'+ds+'">'+d+'</button>';
+    }
+    html+='</div>';
+    pop.innerHTML=html;
+    // 导航事件
+    pop.querySelector("#rcpPrev").onclick=function(e){e.stopPropagation();calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCal();};
+    pop.querySelector("#rcpNext").onclick=function(e){e.stopPropagation();calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCal();};
+    // 日期点击事件
+    pop.querySelectorAll(".rcp-day").forEach(btn=>{
+      btn.onclick=function(e){
+        e.stopPropagation();
+        const ds=btn.dataset.date;
+        state.reviewAnchor=ds;
+        pop.remove();
+        $$("#revDims button").forEach(b=>b.classList.toggle("active",b.dataset.d===dim));
+        renderReview();save();
+      };
+    });
+  }
+  renderCal();
+  const rl=$("#revRangeLabel");rl.parentNode.insertBefore(pop,rl.nextSibling);
+  // 点击外部关闭
+  setTimeout(()=>{
+    document.addEventListener("click",function closeCal(e){
+      if(!pop||!pop.parentNode)return;
+      if(!pop.contains(e.target)&&e.target!==rl){
+        pop.remove();
+        document.removeEventListener("click",closeCal);
+      }
+    });
+  },50);
 }
 function rateOf(dates,isYear){const inR=ds=>ds&&(isYear?dates.includes(ds.slice(0,7)):dates.includes(ds));const p=state.tasks.filter(t=>!t.abandoned&&inR(t.due));return p.length?Math.round(p.filter(t=>t.done).length/p.length*100):null;}
 /* 复盘进入/切换：轻量骨架屏 + 同步重算，出错不白屏；不整页重载，仅局部刷新
@@ -2397,7 +2472,12 @@ function renderReview(manual){
   let range;
   try{ range=revRange(); }
   catch(err){ console.error("复盘取数失败",err); if(dataView){try{revFatal(err);}catch(e2){}} if(manual)stopRevSpin(false); return; }
-  $("#revRangeLabel").textContent=range.label||"";
+  const rl=$("#revRangeLabel");
+  rl.textContent=range.displayLabel||range.label||"";
+  rl.style.cursor="pointer";
+  rl.title="点击选择日期";
+  // v54: 日历选择器——点击日期标签弹出小日历
+  rl.onclick=function(e){e.stopPropagation();toggleRevCalendar(range);};
   const subEl=$("#revSubtitle");
   try{
   if(subEl){
@@ -2658,9 +2738,9 @@ function paintReviewDemoRich(dates, isDay, isYear, rangeLen, dayLabels) {
   let hHtml = "";
   demoHd.forEach(d => {
     const color = d.rate >= 80 ? "var(--green)" : d.rate >= 50 ? "#F59E0B" : "var(--red)";
-    hHtml += '<div class="habit-row"><span style="font-size:18px;margin-right:4px">' + d.emoji + '</span><b style="flex:1">' + d.name + '</b><span style="font-size:11px;color:var(--ink-soft);margin-right:8px">' + d.c + '/' + rangeLen + '天</span><span style="font-size:13px;font-weight:600;color:' + color + ';min-width:40px;text-align:right">' + d.rate + '%</span></div>';
+    hHtml += '<div class="habit-row"><span style="font-size:18px;margin-right:4px">' + d.emoji + '</span><b style="flex:1;text-align:center">' + d.name + '</b><span style="font-size:11px;color:var(--ink-soft);margin-right:8px">' + d.c + '/' + rangeLen + '天</span><span style="font-size:13px;font-weight:600;color:' + color + ';min-width:40px;text-align:center">' + d.rate + '%</span></div>';
     hHtml += '<div style="margin:0 24px 4px;height:3px;border-radius:2px;background:var(--bg-soft);overflow:hidden"><div style="height:100%;width:' + d.rate + '%;background:' + color + ';border-radius:2px;transition:width .8s"></div></div>';
-    if (d.streak > 0) hHtml += '<div style="margin:0 24px 6px;font-size:10px;color:var(--ink-soft);text-align:right">🔥 连续' + d.streak + '天</div>';
+    if (d.streak > 0) hHtml += '<div style="margin:0 24px 6px;font-size:10px;color:var(--ink-soft);text-align:center">🔥 连续' + d.streak + '天</div>';
   });
   safeWrite("#revHabitStats", hHtml);
   let hbHtml = '<div class="hb-good">🏆 最佳习惯：' + demoHd[0].name + ' (' + demoHd[0].rate + '%)</div>';
@@ -2712,7 +2792,7 @@ function paintReviewDemoRich(dates, isDay, isYear, rangeLen, dayLabels) {
   if (overdueCnt > 0) lines.push('⚠️ 有 ' + overdueCnt + ' 个任务已过期，建议及时处理。');
   lines.push('📈 相比上周期完成率提升 <span class="ai-highlight">+5%</span>！');
   aiHtml += lines.map(l => '<div class="rev-ai-row">' + l + '</div>').join("");
-  aiHtml += '</div><div style="margin-top:8px;font-size:11px;color:var(--ink-soft);opacity:.7;text-align:right">📊 以上为示例数据，开始使用后自动替换为真实记录</div>';
+  aiHtml += '</div><div style="margin-top:8px;font-size:11px;color:var(--ink-soft);opacity:.7;text-align:center">📊 以上为示例数据，开始使用后自动替换为真实记录</div>';
   safeWrite("#revAISummary", aiHtml);
 
   /* 日历热力图 */
@@ -2873,7 +2953,7 @@ function paintReview(dates,isDay,isYear){
         const classMap={};planned.forEach(t=>{const lid=t.listId||"_none";const l=lists.find(x=>x.id===lid);const key=l?l.name:"未分类";if(!classMap[key])classMap[key]={name:key,color:l?l.color:"#B5B0A9",cnt:0};classMap[key].cnt++;});
         const classList=Object.values(classMap).sort((a,b)=>b.cnt-a.cnt);
         if(classList.length>0){
-          let cl='<div class="rv-chart-title" style="text-align:left;margin-top:4px">任务分类分布</div>';
+          let cl='<div class="rv-chart-title" style="margin-top:4px">任务分类分布</div>';
           cl+=classList.map(c=>'<div class="tc-row"><span class="tc-dot" style="background:'+c.color+'"></span><span class="tc-name">'+esc(c.name)+'</span><span class="tc-cnt">'+c.cnt+'项</span><div class="tc-bar"><i style="width:'+Math.round(c.cnt/planned.length*100)+'%;background:'+c.color+'"></i></div></div>').join('');
           sw("#revTaskClass",cl);
         }else{sw("#revTaskClass","");}
