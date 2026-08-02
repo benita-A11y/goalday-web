@@ -2738,9 +2738,9 @@ function paintReviewDemoRich(dates, isDay, isYear, rangeLen, dayLabels) {
   let hHtml = "";
   demoHd.forEach(d => {
     const color = d.rate >= 80 ? "var(--green)" : d.rate >= 50 ? "#F59E0B" : "var(--red)";
-    hHtml += '<div class="habit-row"><span style="font-size:18px;margin-right:4px">' + d.emoji + '</span><b style="flex:1;text-align:center">' + d.name + '</b><span style="font-size:11px;color:var(--ink-soft);margin-right:8px">' + d.c + '/' + rangeLen + '天</span><span style="font-size:13px;font-weight:600;color:' + color + ';min-width:40px;text-align:center">' + d.rate + '%</span></div>';
+    hHtml += '<div class="habit-row"><span style="font-size:18px;margin-right:4px">' + d.emoji + '</span><b style="flex:1">' + d.name + '</b><span style="font-size:11px;color:var(--ink-soft);margin-right:8px">' + d.c + '/' + rangeLen + '天</span><span style="font-size:13px;font-weight:600;color:' + color + ';min-width:40px">' + d.rate + '%</span></div>';
     hHtml += '<div style="margin:0 24px 4px;height:3px;border-radius:2px;background:var(--bg-soft);overflow:hidden"><div style="height:100%;width:' + d.rate + '%;background:' + color + ';border-radius:2px;transition:width .8s"></div></div>';
-    if (d.streak > 0) hHtml += '<div style="margin:0 24px 6px;font-size:10px;color:var(--ink-soft);text-align:center">🔥 连续' + d.streak + '天</div>';
+    if (d.streak > 0) hHtml += '<div style="margin:0 24px 6px;font-size:10px;color:var(--ink-soft)">🔥 连续' + d.streak + '天</div>';
   });
   safeWrite("#revHabitStats", hHtml);
   let hbHtml = '<div class="hb-good">🏆 最佳习惯：' + demoHd[0].name + ' (' + demoHd[0].rate + '%)</div>';
@@ -2792,7 +2792,7 @@ function paintReviewDemoRich(dates, isDay, isYear, rangeLen, dayLabels) {
   if (overdueCnt > 0) lines.push('⚠️ 有 ' + overdueCnt + ' 个任务已过期，建议及时处理。');
   lines.push('📈 相比上周期完成率提升 <span class="ai-highlight">+5%</span>！');
   aiHtml += lines.map(l => '<div class="rev-ai-row">' + l + '</div>').join("");
-  aiHtml += '</div><div style="margin-top:8px;font-size:11px;color:var(--ink-soft);opacity:.7;text-align:center">📊 以上为示例数据，开始使用后自动替换为真实记录</div>';
+  aiHtml += '</div><div style="margin-top:8px;font-size:11px;color:var(--ink-soft);opacity:.7">📊 以上为示例数据，开始使用后自动替换为真实记录</div>';
   safeWrite("#revAISummary", aiHtml);
 
   /* 日历热力图 */
