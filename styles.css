@@ -484,17 +484,21 @@ body.col-resizing{cursor:col-resize;user-select:none;-webkit-user-select:none;}
 .kpi-card{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:14px 8px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px;transition:all .2s;}
 .kpi-card:hover{box-shadow:0 2px 12px rgba(0,0,0,.06);}
 .kpi-ring{position:relative;width:64px;height:64px;display:flex;align-items:center;justify-content:center;}
-.kpi-ring svg{position:absolute;inset:0;width:64px;height:64px;}
-.kpi-ring svg circle{fill:none;stroke:var(--bg-soft);stroke-width:5;cx:36;cy:36;r:28;}
-.kpi-ring svg circle.fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .8s ease;}
+.kpi-svg{position:absolute;inset:0;width:100%;height:100%;}
+.kpi-arc{transition:stroke-dashoffset .8s ease;}
+.kpi-arc.good{stroke:var(--green);}
+.kpi-arc.mid{stroke:var(--accent);}
+.kpi-arc.low{stroke:var(--red);}
+.kpi-ring-num .kpi-svg{opacity:.4;}
 .kpi-val{font-size:17px;font-weight:700;color:var(--ink);position:relative;z-index:1;font-variant-numeric:tabular-nums;}
+.kpi-val-big{font-size:14px;font-weight:700;}
 .kpi-num{font-size:28px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;}
 .kpi-unit{font-size:12px;color:var(--ink-soft);margin-top:-2px;}
 .kpi-label{font-size:11px;color:var(--ink-soft);font-weight:500;}
 .kpi-sub{font-size:10px;color:var(--ink-3);margin-top:-2px;}
 /* KPI 状态色 */
 .kpi-card.good{background:linear-gradient(180deg,color-mix(in srgb,var(--green) 8%,var(--bg)),var(--bg));border-color:color-mix(in srgb,var(--green) 25%,transparent);}
-.kpi-card.ok{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 8%,var(--bg)),var(--bg));border-color:color-mix(in srgb,var(--accent) 20%,transparent);}
+.kpi-card.mid,.kpi-card.ok{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 8%,var(--bg)),var(--bg));border-color:color-mix(in srgb,var(--accent) 20%,transparent);}
 .kpi-card.warn{background:linear-gradient(180deg,color-mix(in srgb,#E8A84B 8%,var(--bg)),var(--bg));border-color:color-mix(in srgb,#E8A84B 20%,transparent);}
 .kpi-card.low{background:linear-gradient(180deg,color-mix(in srgb,var(--red) 6%,var(--bg)),var(--bg));border-color:color-mix(in srgb,var(--red) 15%,transparent);}
 
@@ -504,6 +508,8 @@ body.col-resizing{cursor:col-resize;user-select:none;-webkit-user-select:none;}
 .rv-panel-hd h3{font-size:15px;font-weight:600;color:var(--ink);margin:0;}
 .rv-panel-badge{font-size:11px;padding:3px 10px;border-radius:99px;font-weight:600;background:var(--bg-soft);color:var(--ink-soft);}
 .rv-panel-badge.good{background:color-mix(in srgb,var(--green) 15%,var(--bg));color:var(--green);}
+.rv-panel-badge.mid{background:color-mix(in srgb,var(--accent) 15%,var(--bg));color:var(--accent);}
+.rv-panel-badge.low{background:color-mix(in srgb,var(--red) 12%,var(--bg));color:var(--red);}
 .rv-panel-badge.warn{background:color-mix(in srgb,#E8A84B 15%,var(--bg));color:#C07A20;}
 .rv-panel-body{padding:0 16px 14px;}
 
@@ -558,12 +564,20 @@ body.col-resizing{cursor:col-resize;user-select:none;-webkit-user-select:none;}
 .rv-focus-heat .fh-label{font-size:10px;color:var(--ink-soft);margin-top:4px;}
 .rv-focus-heat .fh-val{font-size:10px;font-weight:600;color:var(--ink);}
 
-/* AI 小结面板 */
-.rev-ai{padding:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 8%,var(--bg)),var(--bg));border-left:4px solid var(--accent);}
+/* AI 小结面板 —— 对齐 review-guide.html 参考图 */
+.rev-ai{padding:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 8%,var(--bg)),var(--bg));border-left:4px solid var(--accent);border-radius:12px;margin-bottom:10px;}
 .rev-ai h3{font-size:14px;font-weight:600;margin:0 0 8px;display:flex;align-items:center;gap:6px;}
 .rev-ai .ai-body{font-size:13.5px;line-height:1.8;color:var(--ink);}
 .rev-ai .ai-highlight{font-weight:600;color:var(--accent);}
 .rev-ai .ai-warn{font-weight:600;color:var(--red);}
+.rev-ai .pp{font-size:13.5px;line-height:1.8;color:var(--ink);margin:6px 0 0;padding-left:14px;position:relative;}
+.rev-ai .pp::before{content:"·";position:absolute;left:2px;color:var(--accent);font-weight:700;}
+.rev-ai .pp.good::before{color:var(--green);}
+.rev-ai .pp.warn::before{color:var(--red);content:"⚠";left:0;}
+.rev-ai .pp b{color:var(--ink);}
+.rev-ai .pp.good b{color:var(--green);}
+.rev-ai .pp.warn b{color:var(--red);}
+.rev-ai-row{font-size:13px;line-height:1.7;color:var(--ink);margin:4px 0 0 4px;}
 
 /* 空状态引导 */
 .rv-empty-guide{text-align:center;padding:40px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;}
