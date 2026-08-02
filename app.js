@@ -14,7 +14,7 @@ const migColor = c => COLOR_MIGRATE[(c||"").toLowerCase()] || c || "#71b7ed";
 const DAY_NAMES = ["周一","周二","周三","周四","周五","周六","周日"];
 const KEY = "goalday-state-v2";
 const OLD_KEY = "goalday-state-v1";
-const BUILD = 60;   /* v60：待办模块重构——首页三卡入口+灵感收集箱/待分类/我的清单导航流 */
+const BUILD = 61;   /* v61：默认进入灵感收集箱，☰抽屉导航跳转其他页面 */
 
 /* ───────── 日期工具 ───────── */
 function fmtDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
@@ -231,7 +231,7 @@ function switchTab(tab){
   $("#fabView").style.display=(inPlan&&state.viewMode==="week")?"block":"none";
   renderTab(tab); save();
 }
-$$("#tabbar button").forEach(b=>b.addEventListener("click",()=>{if(b.dataset.tab==="todo")state.todoLayer="home";switchTab(b.dataset.tab);}));
+$$("#tabbar button").forEach(b=>b.addEventListener("click",()=>{if(b.dataset.tab==="todo")state.todoLayer="inbox";switchTab(b.dataset.tab);}));
 function renderTab(tab){
   if(tab==="todo")renderTodo();
   else if(tab==="habit")renderHabit();
@@ -330,7 +330,7 @@ function openDrawer(){inspSel=null;const sb=$("#inspSelBar");if(sb)sb.remove();r
 function closeDrawer(){$("#drawer").classList.remove("show");$("#drawerMask").classList.remove("show");}
 $("#drawerBtn").addEventListener("click",openDrawer);
 $("#drawerBtn2").addEventListener("click",openDrawer);
-$("#planBack").addEventListener("click",()=>{state.todoLayer="home";openListId=null;renderTodo();save();});
+$("#planBack").addEventListener("click",()=>{state.todoLayer="inbox";openListId=null;renderTodo();save();});
 $("#drawerMask").addEventListener("click",closeDrawer);
 $("#addListBtn").addEventListener("click",()=>{closeDrawer();openListModal();});
 
@@ -374,7 +374,7 @@ function setupTodoHeader(layer){
   const DB=$("#drawerBtn"),BK=$("#btnGoHome"),MR=$("#btnMore"),TT=$("#todoTitle");
   DB.style.display="block";BK.style.display="none";MR.style.display="none";
   if(layer==="home"){TT.textContent="📋 待办";}
-  else if(layer==="inbox"){DB.style.display="none";BK.style.display="block";MR.style.display="block";TT.textContent="💭 灵感收集箱";}
+  else if(layer==="inbox"){DB.style.display="block";BK.style.display="none";MR.style.display="block";TT.textContent="💭 灵感收集箱";}
   else if(layer==="triage"){DB.style.display="none";BK.style.display="block";TT.textContent="📂 待分类";}
   else if(layer==="lists"||layer==="trash"){DB.style.display="none";BK.style.display="block";TT.textContent=layer==="lists"?"📋 我的清单":"🗑️ 回收站";}
 }
@@ -382,7 +382,7 @@ function setupTodoHeader(layer){
 /* v60：返回首页 / 上一级 */
 function goTodoHome(){
   if(state.todoLayer==="lists"&&openListId){openListId=null;renderTodo();return;}
-  state.todoLayer="home";openListId=null;renderTodo();save();
+  state.todoLayer="inbox";openListId=null;renderTodo();save();
 }
 function switchTodoLayer(layer){
   $moreMenu.hidden=true;
@@ -3825,7 +3825,7 @@ $("#mask").addEventListener("click",e=>{if(e.target===$("#mask"))closeModal();})
 /* SW 注册地址带版本号：每次部署改版本，强制浏览器重新拉取 sw.js（避免浏览器缓存旧 SW 导致永远拿不到新代码）。
    同时监听 controllerchange：新 SW 接管时自动刷新一次，确保用户刷新后即看到最新版。 */
 if("serviceWorker" in navigator){
-  const SW_URL="sw.js?__v=jihua-v60";
+  const SW_URL="sw.js?__v=jihua-v61";
   window.addEventListener("load",()=>{
     navigator.serviceWorker.register(SW_URL).catch(()=>{});
     /* 主动检查 SW 更新：即使页面长期不刷新（如手机后台标签页），部署后也能拉到新版 */
