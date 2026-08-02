@@ -14,7 +14,7 @@ const migColor = c => COLOR_MIGRATE[(c||"").toLowerCase()] || c || "#71b7ed";
 const DAY_NAMES = ["周一","周二","周三","周四","周五","周六","周日"];
 const KEY = "goalday-state-v2";
 const OLD_KEY = "goalday-state-v1";
-const BUILD = 61;   /* v61：默认进入灵感收集箱，☰抽屉导航跳转其他页面 */
+const BUILD = 62;   /* v62：灵感收集箱每条右侧加🗑️删除按钮，移除底部多选工具条 */
 
 /* ───────── 日期工具 ───────── */
 function fmtDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
@@ -531,7 +531,6 @@ function renderInbox(){
   const stats=document.createElement("div");stats.className="inbox-stats";
   stats.innerHTML=`📊 今日已记录 ${todayN} 条灵感<span class="sep">|</span>未分类 ${uncatN} 条`;
   body.appendChild(stats);
-  renderInspSelBar();
   applyEmoji();
   /* 重建后自动聚焦（↓ 新建 / 底部新增） */
   if(pendingFocusId){
@@ -568,7 +567,10 @@ function inspRow(n){
   /* 右侧「分类」按钮：点击 → 弹清单选择器 → 归入（取代原左滑操作，更直接） */
   const cat=document.createElement("button");cat.className="ib-catbtn";cat.type="button";cat.textContent="分类";cat.title="归入我的清单";
   cat.addEventListener("click",e=>{e.stopPropagation();categorizeInsp(n.id);});
-  front.append(bullet,txt,cat);
+  /* 右侧「🗑️」删除按钮：点击直接移入回收站 */
+  const del=document.createElement("button");del.className="ib-delbtn";del.type="button";del.textContent="🗑️";del.title="移入回收站";
+  del.addEventListener("click",e=>{e.stopPropagation();trashInsp(n.id);});
+  front.append(bullet,txt,cat,del);
   if(n.img){const im=document.createElement("img");im.src=n.img;im.className="ib-img";front.appendChild(im);}
   row.appendChild(front);
   if(inspSel){
@@ -3825,7 +3827,7 @@ $("#mask").addEventListener("click",e=>{if(e.target===$("#mask"))closeModal();})
 /* SW 注册地址带版本号：每次部署改版本，强制浏览器重新拉取 sw.js（避免浏览器缓存旧 SW 导致永远拿不到新代码）。
    同时监听 controllerchange：新 SW 接管时自动刷新一次，确保用户刷新后即看到最新版。 */
 if("serviceWorker" in navigator){
-  const SW_URL="sw.js?__v=jihua-v61";
+  const SW_URL="sw.js?__v=jihua-v62";
   window.addEventListener("load",()=>{
     navigator.serviceWorker.register(SW_URL).catch(()=>{});
     /* 主动检查 SW 更新：即使页面长期不刷新（如手机后台标签页），部署后也能拉到新版 */
