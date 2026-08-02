@@ -14,7 +14,7 @@ const migColor = c => COLOR_MIGRATE[(c||"").toLowerCase()] || c || "#71b7ed";
 const DAY_NAMES = ["周一","周二","周三","周四","周五","周六","周日"];
 const KEY = "goalday-state-v2";
 const OLD_KEY = "goalday-state-v1";
-const BUILD = 59;   /* v59：复盘迷你统计网格自适应横排 */
+const BUILD = 60;   /* v60：待办模块重构——首页三卡入口+灵感收集箱/待分类/我的清单导航流 */
 
 /* ───────── 日期工具 ───────── */
 function fmtDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
@@ -231,7 +231,7 @@ function switchTab(tab){
   $("#fabView").style.display=(inPlan&&state.viewMode==="week")?"block":"none";
   renderTab(tab); save();
 }
-$$("#tabbar button").forEach(b=>b.addEventListener("click",()=>{if(b.dataset.tab==="todo")state.todoLayer="inbox";switchTab(b.dataset.tab);}));
+$$("#tabbar button").forEach(b=>b.addEventListener("click",()=>{if(b.dataset.tab==="todo")state.todoLayer="home";switchTab(b.dataset.tab);}));
 function renderTab(tab){
   if(tab==="todo")renderTodo();
   else if(tab==="habit")renderHabit();
@@ -330,9 +330,23 @@ function openDrawer(){inspSel=null;const sb=$("#inspSelBar");if(sb)sb.remove();r
 function closeDrawer(){$("#drawer").classList.remove("show");$("#drawerMask").classList.remove("show");}
 $("#drawerBtn").addEventListener("click",openDrawer);
 $("#drawerBtn2").addEventListener("click",openDrawer);
-$("#planBack").addEventListener("click",()=>{state.todoLayer="inbox";openListId=null;renderTodo();save();});
+$("#planBack").addEventListener("click",()=>{state.todoLayer="home";openListId=null;renderTodo();save();});
 $("#drawerMask").addEventListener("click",closeDrawer);
 $("#addListBtn").addEventListener("click",()=>{closeDrawer();openListModal();});
+
+/* v60：待办导航按钮 */
+const $btnGoHome=$("#btnGoHome"),$btnMore=$("#btnMore"),$moreMenu=$("#moreMenu");
+$btnGoHome.addEventListener("click",goTodoHome);
+$btnMore.addEventListener("click",e=>{e.stopPropagation();$moreMenu.hidden=!$moreMenu.hidden;});
+document.addEventListener("click",e=>{if(!e.target.closest("#btnMore")&&!e.target.closest("#moreMenu"))$moreMenu.hidden=true;});
+$$("#moreMenu button[data-more]").forEach(b=>{
+  b.addEventListener("click",()=>{
+    const tv=b.dataset.more;
+    if(tv==="stats"){$moreMenu.hidden=true;toast("灵感统计功能即将上线 📊");return;}
+    switchTodoLayer(tv);
+  });
+});
+
 $$("#drawer .ditem[data-tv]").forEach(b=>b.addEventListener("click",()=>{
   const tv=b.dataset.tv;
   if(tv==="plan"){state.todoLayer="plan";closeDrawer();renderTodo();return;}
@@ -343,14 +357,62 @@ function refreshTodo(){renderTodo();renderDrawer();}
 /* ── Tab1 主分发：按使用流程切换子视图 ── */
 function renderTodo(){
   const home=$("#todoHome"),plan=$("#todoPlan");
+  setupTodoHeader(state.todoLayer);
   if(state.todoLayer==="plan"){home.hidden=true;plan.hidden=false;renderTodoPlan();}
   else{
     home.hidden=false;plan.hidden=true;
-    if(state.todoLayer==="triage")renderTriage();
+    if(state.todoLayer==="home")renderTodoHome();
+    else if(state.todoLayer==="triage")renderTriage();
     else if(state.todoLayer==="lists")renderMyLists();
     else if(state.todoLayer==="trash")renderTrash();
     else{state.todoLayer="inbox";renderInbox();}
   }
+}
+
+/* v60：统一管理待办头部按钮（☰/‹/⋯），每个子视图调用 */
+function setupTodoHeader(layer){
+  const DB=$("#drawerBtn"),BK=$("#btnGoHome"),MR=$("#btnMore"),TT=$("#todoTitle");
+  DB.style.display="block";BK.style.display="none";MR.style.display="none";
+  if(layer==="home"){TT.textContent="📋 待办";}
+  else if(layer==="inbox"){DB.style.display="none";BK.style.display="block";MR.style.display="block";TT.textContent="💭 灵感收集箱";}
+  else if(layer==="triage"){DB.style.display="none";BK.style.display="block";TT.textContent="📂 待分类";}
+  else if(layer==="lists"||layer==="trash"){DB.style.display="none";BK.style.display="block";TT.textContent=layer==="lists"?"📋 我的清单":"🗑️ 回收站";}
+}
+
+/* v60：返回首页 / 上一级 */
+function goTodoHome(){
+  if(state.todoLayer==="lists"&&openListId){openListId=null;renderTodo();return;}
+  state.todoLayer="home";openListId=null;renderTodo();save();
+}
+function switchTodoLayer(layer){
+  $moreMenu.hidden=true;
+  state.todoLayer=layer;renderTodo();save();
+}
+
+/* v60：待办首页（三卡入口） */
+function renderTodoHome(){
+  const body=$("#todoBody");body.innerHTML="";
+  const wrap=document.createElement("div");wrap.className="todo-home-cards";
+  /* 待整理数量 */
+  const inboxN=state.inspirations.filter(n=>n.status==="inbox"||n.status==="triage").length;
+  /* 卡片1：灵感收集箱 */
+  const c1=document.createElement("button");c1.className="th-card";
+  c1.innerHTML=`<span class="th-icon">📥</span><span class="th-info"><span class="th-name">灵感收集箱${inboxN>0?`<span class="th-badge">${inboxN}</span>`:""}</span><span class="th-desc">随时记录一闪而过的念头</span></span><span class="th-arrow">›</span>`;
+  c1.addEventListener("click",()=>switchTodoLayer("inbox"));
+  wrap.appendChild(c1);
+  /* 卡片2：周计划 */
+  const c2=document.createElement("button");c2.className="th-card";
+  c2.innerHTML=`<span class="th-icon">📅</span><span class="th-info"><span class="th-name">周计划</span><span class="th-desc">拖拽安排一周任务与日程</span></span><span class="th-arrow">›</span>`;
+  c2.addEventListener("click",()=>{switchTodoLayer("plan");});
+  wrap.appendChild(c2);
+  /* 卡片3：我的清单 */
+  const listN=state.lists.length;
+  const c3=document.createElement("button");c3.className="th-card";
+  c3.innerHTML=`<span class="th-icon">📂</span><span class="th-info"><span class="th-name">我的清单${listN>0?`<span class="th-badge">${listN}</span>`:""}</span><span class="th-desc">查看所有已分类的任务清单</span></span><span class="th-arrow">›</span>`;
+  c3.addEventListener("click",()=>switchTodoLayer("lists"));
+  wrap.appendChild(c3);
+  body.appendChild(wrap);
+  applyEmoji();
 }
 
 /* ── 灵感数据助手 ── */
@@ -447,7 +509,6 @@ function enableSwipeRow(el,onLeft,onRight){
 
 /* ── 灵感收集箱（默认页 · Apple 圆点速记 升级版） ── */
 function renderInbox(){
-  $("#todoTitle").textContent="💭 灵感收集箱";
   const body=$("#todoBody");body.innerHTML="";
   const list=state.inspirations.filter(n=>n.status==="inbox");
   const wrap=document.createElement("div");wrap.className="insp-editor";
@@ -464,11 +525,12 @@ function renderInbox(){
   add.innerHTML=`<span class="ib-bullet" style="color:var(--ink-3)">○</span><span class="insp-add-input" style="color:var(--ink-3)">新增一条灵感…</span>`;
   add.addEventListener("click",()=>addInsp(""));
   body.appendChild(add);
-  /* 底部交互指引 + 今日已记录条数 */
-  const hint=document.createElement("div");hint.className="insp-hint";
+  /* v60：底部统计栏（替换原指引，展示今日记录 + 未分类数） */
   const todayN=state.inspirations.filter(n=>n.createdAt&&new Date(n.createdAt).toDateString()===new Date().toDateString()).length;
-  hint.innerHTML=`<span class="ih-swipe">💡 点击右侧「分类」按钮 → 归入我的清单</span><span class="ih-stat">📊 今日已记录 ${todayN} 条灵感</span>`;
-  body.appendChild(hint);
+  const uncatN=state.inspirations.filter(n=>n.status==="inbox"||n.status==="triage").length;
+  const stats=document.createElement("div");stats.className="inbox-stats";
+  stats.innerHTML=`📊 今日已记录 ${todayN} 条灵感<span class="sep">|</span>未分类 ${uncatN} 条`;
+  body.appendChild(stats);
   renderInspSelBar();
   applyEmoji();
   /* 重建后自动聚焦（↓ 新建 / 底部新增） */
@@ -594,7 +656,6 @@ function enableSwipeReveal(row,opts){
 
 /* ── 待分类（未分类灵感的筛选视图，与收集箱同源；直接点「分类」归入） ── */
 function renderTriage(){
-  $("#todoTitle").textContent="📂 待分类";
   const body=$("#todoBody");body.innerHTML="";
   /* 待分类 = 所有未分类灵感（inbox 与 triage 状态）的同源视图 */
   const list=state.inspirations.filter(n=>n.status==="inbox"||n.status==="triage");
@@ -613,12 +674,15 @@ function renderTriage(){
     row.appendChild(front);
     body.appendChild(row);
   });
+  /* v60：底部指引 */
+  const hint=document.createElement("div");hint.className="triage-bottom-hint";
+  hint.innerHTML=`💡 点击「分类」→ 归入我的清单<br>分类后灵感从待分类消失，出现在对应清单中`;
+  body.appendChild(hint);
   applyEmoji();
 }
 
 /* ── 我的清单（列表 → 清单详情） ── */
 function renderMyLists(){
-  $("#todoTitle").textContent="📋 我的清单";
   const body=$("#todoBody");body.innerHTML="";
   if(openListId){renderListDetail(openListId,body);applyEmoji();return;}
   state.lists.forEach(l=>{
@@ -653,7 +717,6 @@ function renderListDetail(id,body){
 
 /* ── 回收站（30 天） ── */
 function renderTrash(){
-  $("#todoTitle").textContent="🗑️ 回收站";
   const body=$("#todoBody");body.innerHTML="";
   purgeTrash();
   const list=state.inspirations.filter(n=>n.status==="trash");
@@ -3762,7 +3825,7 @@ $("#mask").addEventListener("click",e=>{if(e.target===$("#mask"))closeModal();})
 /* SW 注册地址带版本号：每次部署改版本，强制浏览器重新拉取 sw.js（避免浏览器缓存旧 SW 导致永远拿不到新代码）。
    同时监听 controllerchange：新 SW 接管时自动刷新一次，确保用户刷新后即看到最新版。 */
 if("serviceWorker" in navigator){
-  const SW_URL="sw.js?__v=jihua-v59";
+  const SW_URL="sw.js?__v=jihua-v60";
   window.addEventListener("load",()=>{
     navigator.serviceWorker.register(SW_URL).catch(()=>{});
     /* 主动检查 SW 更新：即使页面长期不刷新（如手机后台标签页），部署后也能拉到新版 */
