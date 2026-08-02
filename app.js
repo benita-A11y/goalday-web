@@ -14,7 +14,7 @@ const migColor = c => COLOR_MIGRATE[(c||"").toLowerCase()] || c || "#71b7ed";
 const DAY_NAMES = ["周一","周二","周三","周四","周五","周六","周日"];
 const KEY = "goalday-state-v2";
 const OLD_KEY = "goalday-state-v1";
-const BUILD = 51;   /* v51：复盘全新双层布局——时间维度切换+总体概览+细分拆解+AI小结 */
+const BUILD = 57;   /* v57：复盘标签修复——HTML inline onclick + 双保险事件 + app-build戳同步 */
 
 /* ───────── 日期工具 ───────── */
 function fmtDate(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
@@ -2338,13 +2338,22 @@ function roundRect(ctx,x,y,w,h,r){
 }
 
 /* ═══════════ Tab4 复盘（视图 + 统计 合并） ═══════════ */
-/* v56：修复标签点击——切换时间维度 + 清除自定义月份 + 重置锚点为今天 */
+/* v57：全局切换函数 —— HTML内联onclick + JS事件监听双保险，确保按钮在任何情况下都能点击 */
+window.switchReviewTab=function(dim,e){
+  if(e){e.preventDefault();e.stopPropagation();}
+  console.log('[复盘] 标签切换→',dim);
+  state.reviewDim=dim;
+  state.reviewCustomMonth=null;
+  state.reviewAnchor=todayStr();
+  /* 即时高亮反馈，不等 renderReview */
+  $$("#revDims button").forEach(b=>b.classList.toggle("active",b.dataset.d===dim));
+  try{renderReview();}catch(err){console.error('[复盘] renderReview失败:',err);}
+  try{save();}catch(err){console.error('[复盘] save失败:',err);}
+};
+/* JS事件监听器（兜底，与HTML onclick形成双保险） */
 $$("#revDims button").forEach(b=>{
-  b.addEventListener("click",()=>{
-    state.reviewDim=b.dataset.d;
-    state.reviewCustomMonth=null;    // 切换标签时退出自定义月份模式
-    state.reviewAnchor=todayStr();   // 回到今天
-    renderReview();save();
+  b.addEventListener("click",function(e){
+    if(e.target.dataset.d)switchReviewTab(e.target.dataset.d,e);
   });
 });
 /* v48：复盘 ‹ › 箭头切换周期 */
