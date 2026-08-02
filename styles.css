@@ -519,39 +519,6 @@ body.col-resizing{cursor:col-resize;user-select:none;-webkit-user-select:none;}
 .rv-mini-grid .ms b{display:block;font-size:18px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;}
 .rv-mini-grid .ms span{font-size:10.5px;color:var(--ink-soft);margin-top:1px;display:block;}
 
-/* v58：任务复盘 2×2 四宫格 */
-.rv-task-4grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
-.t4-card{background:var(--bg-soft);border:1px solid var(--line);border-radius:12px;padding:14px 10px;text-align:center;transition:all .15s;}
-.t4-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.06);}
-.t4-card .t4-icon{font-size:20px;display:block;margin-bottom:6px;}
-.t4-card .t4-val{font-size:24px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.1;}
-.t4-card .t4-label{font-size:11px;color:var(--ink-soft);margin-top:3px;display:block;}
-
-/* v58：进度条 */
-.rv-progress-row{margin:0 0 12px;}
-.rv-progress-label{font-size:11px;color:var(--ink-soft);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;}
-.rv-progress-label .rp-pct{font-weight:600;color:var(--ink);}
-.rv-progress-track{height:8px;background:var(--bg-soft);border-radius:4px;overflow:hidden;}
-.rv-progress-fill{height:100%;border-radius:4px;background:var(--green);transition:width .4s ease;}
-.rv-progress-detail{font-size:11px;color:var(--ink-soft);margin-top:5px;text-align:center;}
-
-/* v58：日程执行 三列 */
-.rv-sched-3col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;}
-.s3-card{background:var(--bg-soft);border:1px solid var(--line);border-radius:12px;padding:14px 8px;text-align:center;transition:all .15s;}
-.s3-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.06);}
-.s3-card .s3-icon{font-size:20px;display:block;margin-bottom:6px;}
-.s3-card .s3-val{font-size:24px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.1;}
-.s3-card .s3-label{font-size:11px;color:var(--ink-soft);margin-top:3px;display:block;}
-
-/* v58：月度日程趋势 */
-.rv-monthly-trend{margin-top:10px;margin-bottom:6px;}
-.rv-monthly-title{font-size:11.5px;color:var(--ink-soft);font-weight:600;margin-bottom:8px;text-align:center;}
-.rv-monthly-bars{display:flex;align-items:flex-end;gap:4px;height:90px;padding:0 2px;}
-.rv-monthly-bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;}
-.rv-monthly-fill{width:100%;max-width:32px;border-radius:3px 3px 0 0;background:var(--accent);min-height:3px;transition:height .3s ease;}
-.rv-monthly-val{font-size:9px;color:var(--ink-soft);font-variant-numeric:tabular-nums;}
-.rv-monthly-mon{font-size:9px;color:var(--ink-soft);white-space:nowrap;}
-
 /* 图表行 */
 .rv-charts-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;}
 .rv-chart-box{background:var(--bg-soft);border-radius:12px;padding:10px;border:1px solid var(--line);}
@@ -647,9 +614,7 @@ body.col-resizing{cursor:col-resize;user-select:none;-webkit-user-select:none;}
 
 /* ═══ 打卡 ═══ */
 .sub-tabs{display:flex;background:var(--bg-soft);border:1px solid var(--line);border-radius:10px;padding:3px;margin:0 auto 12px;max-width:300px;}
-.sub-tabs button{flex:1;font-size:13px;border-radius:7px;padding:7px 6px;color:var(--ink-soft);font-weight:500;border:none;background:transparent;cursor:pointer;transition:all .15s;}
-.sub-tabs button:hover{background:var(--bg);color:var(--ink);}
-.sub-tabs button:active{transform:scale(.96);}
+.sub-tabs button{flex:1;font-size:13px;border-radius:7px;padding:6px;color:var(--ink-soft);font-weight:500;}
 .sub-tabs button.active{background:var(--bg);box-shadow:0 1px 3px rgba(0,0,0,.08);color:var(--ink);font-weight:600;}
 .range-chips{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;padding:0 14px;}
 .range-chips button{font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:6px 13px;color:var(--ink-soft);font-weight:500;}
