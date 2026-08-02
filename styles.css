@@ -513,9 +513,9 @@ body.col-resizing{cursor:col-resize;user-select:none;-webkit-user-select:none;}
 .rv-panel-badge.warn{background:color-mix(in srgb,#E8A84B 15%,var(--bg));color:#C07A20;}
 .rv-panel-body{padding:0 16px 14px;}
 
-/* 迷你统计网格 */
-.rv-mini-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-bottom:10px;}
-.rv-mini-grid .ms{flex:1;min-width:72px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 6px;text-align:center;}
+/* 迷你统计网格 — v59：四个指标自适应横排成一行 */
+.rv-mini-grid{display:flex;flex-wrap:nowrap;gap:8px;margin-bottom:10px;}
+.rv-mini-grid .ms{flex:1 1 0;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 6px;text-align:center;}
 .rv-mini-grid .ms b{display:block;font-size:18px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;}
 .rv-mini-grid .ms span{font-size:10.5px;color:var(--ink-soft);margin-top:1px;display:block;}
 
@@ -1777,7 +1777,10 @@ body.no-scroll{overflow:hidden;}
   .rv-charts-row{grid-template-columns:1fr;}
   .rv-panel-hd{padding:10px 12px 6px;}
   .rv-panel-body{padding:0 12px 12px;}
-  .rv-mini-grid{grid-template-columns:repeat(2,1fr);}
+  .rv-mini-grid{display:flex;flex-wrap:nowrap;gap:6px;}
+  .rv-mini-grid .ms{padding:8px 4px;}
+  .rv-mini-grid .ms b{font-size:16px;}
+  .rv-mini-grid .ms span{font-size:9.5px;}
   .rv-empty-steps{max-width:100%;}
   .rev-nav-row{gap:0;}
   .rev-range{font-size:12.5px;min-width:120px;}
